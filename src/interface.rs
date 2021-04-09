@@ -1,7 +1,7 @@
 use std::io::{self, Stdout};
 use tui::{
-    widgets::{Block, Borders},
-    Terminal,
+    widgets::{Block, Borders, Widget},
+    Frame, Terminal,
 };
 // FIXME: the problem with this backend is that it only supports linux
 // we will probably need to use crosstermback later
@@ -9,27 +9,47 @@ use termion::raw::{IntoRawMode, RawTerminal};
 use tui::backend::TermionBackend;
 
 pub struct Buffer {
-    content: dyn AsRef<u8>,
+    content: String,
+    name: String,
 }
 
 /// A window/visible buffer
-pub struct Window {}
+pub struct Window<'a> {
+    buffer: &'a Buffer,
+    block_widget: Block<'a>,
+}
+
+impl<'a> Window<'a> {
+    fn new(buffer: &'a Buffer) -> Window<'a> {
+        Window {
+            buffer: buffer,
+            block_widget: Block::default()
+                .title(buffer.name.clone())
+                .borders(Borders::ALL),
+        }
+    }
+}
 
 /// A configuration for drawing a window for the interface
 
 /// The full interface that will be rendered on the screen
-pub struct Interface {
-    windows: Vec<Window>,
+pub struct Interface<'a> {
+    // TODO: we should probably have a some high level configuration for the
+    // interface that specifies how to order the windows
+    /// the visual windows in the interface
+    windows: Vec<Window<'a>>,
     /// abstract interface to the terminal
     terminal: Terminal<TermionBackend<RawTerminal<Stdout>>>,
 }
 
-impl Interface {
+impl<'a> Interface<'a> {
     pub fn draw(&mut self) -> Result<(), io::Error> {
+        let widgets = self.windows[..].iter().map(|x| Box::new(&x.block_widget));
         self.terminal.draw(|f| {
             let size = f.size();
-            let block = Block::default().title("Block").borders(Borders::ALL);
-            f.render_widget(block, size);
+            for w in widgets {
+                f.render_widget(*w, size);
+            }
         })
     }
 
@@ -38,8 +58,8 @@ impl Interface {
     }
 }
 
-impl Default for Interface {
-    fn default() -> Interface {
+impl<'a> Default for Interface<'a> {
+    fn default() -> Interface<'a> {
         let result: Result<Interface, io::Error> = (|| {
             let stdout = io::stdout().into_raw_mode()?;
             let backend = TermionBackend::new(stdout);
@@ -58,12 +78,4 @@ impl Default for Interface {
             Err(_) => panic!(",,,,,,,,,,,,,,"),
         }
     }
-}
-
-// we will only support drawing a single window right now as a render test
-impl Window {
-    fn new() -> Window {
-        return Window {};
-    }
-    fn draw(&self) {}
 }
