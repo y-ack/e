@@ -1,4 +1,7 @@
+use crossterm::event::{read, Event};
 use std::io::{self, Stdout};
+use tree_sitter::{Language, Node, Parser, Tree};
+use tui::backend::CrosstermBackend;
 use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -6,14 +9,33 @@ use tui::{
     widgets::{Block, Borders, Paragraph, Wrap},
     Terminal,
 };
-// FIXME: the problem with this backend is that it only supports linux
-// we will probably need to use crosstermback later
-use crossterm::event::{read, Event};
-use tui::backend::CrosstermBackend;
+
+extern "C" {
+    fn tree_sitter_javascript() -> Language;
+}
 
 pub struct Buffer {
     pub content: String,
     pub name: String,
+    pub parser: Parser,
+}
+
+impl Buffer {
+    pub fn new(content: String, name: String) -> Buffer {
+        let language = unsafe { tree_sitter_javascript() };
+        let mut parser = Parser::new();
+        parser.set_language(language).unwrap();
+
+        Buffer {
+            content: content,
+            name: name,
+            parser: parser,
+        }
+    }
+
+    pub fn get_tree(&mut self) -> Tree {
+        self.parser.parse(self.content.clone(), None).unwrap()
+    }
 }
 
 /// A window/visible buffer
@@ -26,7 +48,7 @@ impl<'a> Window<'a> {
         Window { buffer: buffer }
     }
 
-    fn getWidget(&self) -> Paragraph {
+    fn get_widget(&self) -> Paragraph {
         let text = Span::raw(self.buffer.content.clone());
         Paragraph::new(text)
             .block(
@@ -64,7 +86,7 @@ impl<'a> Interface<'a> {
                 .split(f.size());
             for i in windows.iter().zip(layout.iter()) {
                 let (w, c) = i;
-                let widget = w.getWidget();
+                let widget = w.get_widget();
                 f.render_widget(widget, *c);
             }
         })
