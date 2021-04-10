@@ -28,7 +28,7 @@ impl<'a> Interface<'a> {
 				let layout = Layout::default()
 					.direction(Direction::Vertical)
 					.margin(0)
-					.constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+					.constraints([Constraint::Percentage(100)].as_ref())
 					.split(f.size());
 				for i in windows.iter().zip(layout.iter()) {
 					let (w, c) = i;
