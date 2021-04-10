@@ -1,11 +1,29 @@
 mod interface;
 
-use interface::Interface;
+use interface::{highlight, Buffer, Interface, Window};
 
 fn main() {
-    println!("Hello, world!");
     let mut interface = Interface::default();
 
-    interface.clear().ok();
-    interface.draw().ok();
+    let mut buffer = Buffer::new(
+        String::from("function hello_world() { console.log('hello, world!'); }"),
+        String::from("test.js"),
+    );
+    let buffer2 = Buffer::new(
+        String::from(buffer.get_tree().root_node().to_sexp()),
+        String::from("test.txt"),
+    );
+
+    let mut c = &mut buffer.tree.root_node().walk();
+    highlight(c);
+
+    // interface.windows.push(Window::new(&buffer));
+    // interface.windows.push(Window::new(&buffer2));
+
+    // interface.clear().ok();
+    // interface.draw().ok();
+
+    // loop {
+    //     interface.update().ok().expect("oh well 2");
+    // }
 }

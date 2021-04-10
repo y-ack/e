@@ -1,32 +1,85 @@
+use crossterm::event::{read, Event};
+use ropey::Rope;
 use std::io::{self, Stdout};
+use tree_sitter::{Language, Parser, Tree, TreeCursor};
+use tui::backend::CrosstermBackend;
 use tui::{
-    widgets::{Block, Borders, Widget},
-    Frame, Terminal,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
+    text::Span,
+    widgets::{Block, Borders, Paragraph, Wrap},
+    Terminal,
 };
-// FIXME: the problem with this backend is that it only supports linux
-// we will probably need to use crosstermback later
-use termion::raw::{IntoRawMode, RawTerminal};
-use tui::backend::TermionBackend;
+
+extern "C" {
+    fn tree_sitter_javascript() -> Language;
+}
 
 pub struct Buffer {
-    content: String,
-    name: String,
+    pub content: Rope,
+    pub name: String,
+    pub parser: Parser,
+    pub tree: Tree,
+}
+
+impl Buffer {
+    pub fn new(content: String, name: String) -> Buffer {
+        let language = unsafe { tree_sitter_javascript() };
+        let mut parser = Parser::new();
+        parser.set_language(language).unwrap();
+        let tree = parser.parse(content.clone(), None).unwrap();
+
+        Buffer {
+            content: Rope::from_str(&content),
+            name: name,
+            parser: parser,
+            tree: tree,
+        }
+    }
+
+    pub fn get_tree(&mut self) -> Tree {
+        self.parser
+            .parse(self.content.clone().to_string(), Some(&self.tree))
+            .unwrap()
+    }
 }
 
 /// A window/visible buffer
 pub struct Window<'a> {
     buffer: &'a Buffer,
-    block_widget: Block<'a>,
+    // TODO: should have Rect that defines viewport for the window
+}
+
+pub fn highlight(cursor: &mut TreeCursor) {
+    loop {
+        println!("{}", cursor.node().to_sexp());
+        if !cursor.goto_first_child() {
+            if !cursor.goto_next_sibling() {
+                if !cursor.goto_parent() {
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Window<'a> {
-    fn new(buffer: &'a Buffer) -> Window<'a> {
-        Window {
-            buffer: buffer,
-            block_widget: Block::default()
-                .title(buffer.name.clone())
-                .borders(Borders::ALL),
-        }
+    pub fn new(buffer: &'a Buffer) -> Window<'a> {
+        Window { buffer: buffer }
+    }
+
+    fn get_widget(&self) -> Paragraph {
+        let text = Span::raw(self.buffer.content.clone());
+        Paragraph::new(text)
+            .block(
+                Block::default()
+                    .title(self.buffer.name.clone())
+                    .borders(Borders::ALL),
+            )
+            .style(Style::default().fg(Color::White).bg(Color::Black))
+            .wrap(Wrap { trim: true })
     }
 }
 
@@ -37,18 +90,26 @@ pub struct Interface<'a> {
     // TODO: we should probably have a some high level configuration for the
     // interface that specifies how to order the windows
     /// the visual windows in the interface
-    windows: Vec<Window<'a>>,
+    pub windows: Vec<Window<'a>>,
+    /// layout for tui-rs
+    // layout: Layout,
     /// abstract interface to the terminal
-    terminal: Terminal<TermionBackend<RawTerminal<Stdout>>>,
+    terminal: Terminal<CrosstermBackend<Stdout>>,
 }
 
 impl<'a> Interface<'a> {
     pub fn draw(&mut self) -> Result<(), io::Error> {
-        let widgets = self.windows[..].iter().map(|x| Box::new(&x.block_widget));
+        let windows = &self.windows;
         self.terminal.draw(|f| {
-            let size = f.size();
-            for w in widgets {
-                f.render_widget(*w, size);
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(0)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+                .split(f.size());
+            for i in windows.iter().zip(layout.iter()) {
+                let (w, c) = i;
+                let widget = w.get_widget();
+                f.render_widget(widget, *c);
             }
         })
     }
@@ -56,13 +117,28 @@ impl<'a> Interface<'a> {
     pub fn clear(&mut self) -> Result<(), io::Error> {
         self.terminal.clear()
     }
+
+    pub fn update(&mut self) -> crossterm::Result<()> {
+        loop {
+            // `read()` blocks until an `Event` is available
+            match read()? {
+                Event::Key(event) => println!("{:?}", event),
+                Event::Mouse(event) => println!("{:?}", event),
+                Event::Resize(_, _) => {
+                    self.terminal.autoresize().ok().expect("oh well");
+                    self.clear().ok();
+                    self.draw().ok();
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Default for Interface<'a> {
     fn default() -> Interface<'a> {
         let result: Result<Interface, io::Error> = (|| {
-            let stdout = io::stdout().into_raw_mode()?;
-            let backend = TermionBackend::new(stdout);
+            let stdout = io::stdout();
+            let backend = CrosstermBackend::new(stdout);
 
             let interface = Interface {
                 windows: vec![],
