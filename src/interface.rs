@@ -1,7 +1,7 @@
 use crossterm::event::{read, Event};
 use ropey::Rope;
 use std::io::{self, Stdout};
-use tree_sitter::{Language, Parser, Tree};
+use tree_sitter::{Language, Parser, Tree, TreeCursor};
 use tui::backend::CrosstermBackend;
 use tui::{
     layout::{Constraint, Direction, Layout},
@@ -19,6 +19,7 @@ pub struct Buffer {
     pub content: Rope,
     pub name: String,
     pub parser: Parser,
+    pub tree: Tree,
 }
 
 impl Buffer {
@@ -26,17 +27,19 @@ impl Buffer {
         let language = unsafe { tree_sitter_javascript() };
         let mut parser = Parser::new();
         parser.set_language(language).unwrap();
+        let tree = parser.parse(content.clone(), None).unwrap();
 
         Buffer {
             content: Rope::from_str(&content),
             name: name,
             parser: parser,
+            tree: tree,
         }
     }
 
     pub fn get_tree(&mut self) -> Tree {
         self.parser
-            .parse(self.content.clone().to_string(), None)
+            .parse(self.content.clone().to_string(), Some(&self.tree))
             .unwrap()
     }
 }
@@ -44,6 +47,22 @@ impl Buffer {
 /// A window/visible buffer
 pub struct Window<'a> {
     buffer: &'a Buffer,
+    // TODO: should have Rect that defines viewport for the window
+}
+
+pub fn highlight(cursor: &mut TreeCursor) {
+    loop {
+        println!("{}", cursor.node().to_sexp());
+        if !cursor.goto_first_child() {
+            if !cursor.goto_next_sibling() {
+                if !cursor.goto_parent() {
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Window<'a> {

@@ -1,6 +1,6 @@
 mod interface;
 
-use interface::{Buffer, Interface, Window};
+use interface::{highlight, Buffer, Interface, Window};
 
 fn main() {
     let mut interface = Interface::default();
@@ -14,13 +14,16 @@ fn main() {
         String::from("test.txt"),
     );
 
-    interface.windows.push(Window::new(&buffer));
-    interface.windows.push(Window::new(&buffer2));
+    let mut c = &mut buffer.tree.root_node().walk();
+    highlight(c);
 
-    interface.clear().ok();
-    interface.draw().ok();
+    // interface.windows.push(Window::new(&buffer));
+    // interface.windows.push(Window::new(&buffer2));
 
-    loop {
-        interface.update().ok().expect("oh well 2");
-    }
+    // interface.clear().ok();
+    // interface.draw().ok();
+
+    // loop {
+    //     interface.update().ok().expect("oh well 2");
+    // }
 }
