@@ -9,7 +9,7 @@ fn main() {
         String::from("function hello_world() { console.log('hello, world!'); }"),
         String::from("test.js"),
     );
-    let mut buffer2 = Buffer::new(
+    let buffer2 = Buffer::new(
         String::from(buffer.get_tree().root_node().to_sexp()),
         String::from("test.txt"),
     );

@@ -1,6 +1,6 @@
 use crossterm::event::{read, Event};
 use std::io::{self, Stdout};
-use tree_sitter::{Language, Node, Parser, Tree};
+use tree_sitter::{Language, Parser, Tree};
 use tui::backend::CrosstermBackend;
 use tui::{
     layout::{Constraint, Direction, Layout},
@@ -109,7 +109,6 @@ impl<'a> Interface<'a> {
                 }
             }
         }
-        Ok(())
     }
 }
 
