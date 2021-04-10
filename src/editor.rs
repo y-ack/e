@@ -1,3 +1,3 @@
 struct Editor {
-    buffers: Vec<Buffer>,
+	buffers: Vec<Buffer>,
 }
