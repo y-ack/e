@@ -108,7 +108,7 @@ impl<'a> Window<'a> {
 
 	pub fn get_widget(&self, viewport: Rect) -> Paragraph {
 		// let text = Span::raw(self.buffer.content.clone());
-		let text = self.render_with_viewport(2, 0, viewport.width, viewport.height);
+		let text = self.render_with_viewport(3, 0, viewport.width, viewport.height);
 
 		// let text = Spans::from(self.highlight());
 		Paragraph::new(text)
@@ -118,6 +118,5 @@ impl<'a> Window<'a> {
 					.borders(Borders::ALL),
 			)
 			.style(Style::default().fg(Color::White).bg(Color::Black))
-			.wrap(Wrap { trim: true })
 	}
 }
