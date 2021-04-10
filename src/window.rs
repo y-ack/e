@@ -1,3 +1,5 @@
+use ropey::RopeSlice;
+use std::cmp;
 use tui::{
 	layout::Rect,
 	style::{Color, Style},
@@ -70,19 +72,45 @@ impl<'a> Window<'a> {
 		}
 	}
 
-	// fn render_with_viewport(&self, x: u32, y: u32, w: u16, h: u16) -> Spans {
-	//	  let start_byte = self.buffer.content.byte_to_line(x);
+	// OPTIMIZE: we can probably just find the first line and then iterate through
+	// each line by searching for the next newline from there instead of asking
+	// rope to get each line individually. haven't tested how rope handles
+	// carriage returns yet,
+	fn render_with_viewport(&self, x: u32, y: u32, w: u16, h: u16) -> Vec<Spans> {
+		let mut lines: Vec<RopeSlice> = vec![];
 
-	//	  // Spans::from(vec![for i in y..y + h {
-	//	  //		Span::raw("owo")
-	//	  // }])
-	// }
+		for i in y..cmp::min(y + (h as u32), self.buffer.content.len_lines() as u32) {
+			lines.push(self.buffer.content.line(i as usize));
+			eprintln!("{}", self.buffer.content.line(i as usize));
+			eprintln!("{}", self.buffer.content.line(i as usize).len_bytes());
+		}
+
+		// these are offsets expressed in usize
+		let offx = x as usize;
+		let offw = offx + (w as usize);
+		eprintln!("{} {}", offx, offw);
+		lines
+			.into_iter()
+			.map(|x| {
+				Spans::from(Span::raw({
+					let end = cmp::min(offw, x.len_bytes());
+					if end >= offx {
+						x.slice(offx..cmp::min(offw, x.len_bytes()))
+							.as_str()
+							.unwrap()
+					} else {
+						""
+					}
+				}))
+			})
+			.collect::<Vec<Spans>>()
+	}
 
 	pub fn get_widget(&self, viewport: Rect) -> Paragraph {
 		// let text = Span::raw(self.buffer.content.clone());
-		// let text = self.render_with_viewport(0, 0, viewport.width, viewport.height);
+		let text = self.render_with_viewport(2, 0, viewport.width, viewport.height);
 
-		let text = Spans::from(self.highlight());
+		// let text = Spans::from(self.highlight());
 		Paragraph::new(text)
 			.block(
 				Block::default()

@@ -10,7 +10,7 @@ fn main() {
 	let mut interface = Interface::default();
 
 	let mut buffer = Buffer::new(
-		String::from("function hello_world() {\n	console.log('hello, world!');\n}"),
+		String::from("function hello_world() {\n  console.log('hello, world!');\n}"),
 		String::from("test.js"),
 	);
 	let buffer2 = Buffer::new(
