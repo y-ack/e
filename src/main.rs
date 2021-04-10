@@ -16,7 +16,7 @@ fn main() {
 	let language = unsafe { tree_sitter_javascript() };
 
 	let buffer = Buffer::new(
-		String::from("function hello_world() {\n  console.log('hello, world!');cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n}"),
+		String::from("function hello_world() {\n  console.log('hello, world!');\n}"),
 		String::from("test.js"),
 		Some(language),
 	);

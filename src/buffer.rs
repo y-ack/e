@@ -1,3 +1,4 @@
+use num::clamp;
 use ropey::Rope;
 use ropey::RopeSlice;
 use std::cmp;
@@ -10,8 +11,12 @@ use tui::{
 pub struct Buffer {
 	pub content: Rope,
 	pub name: String,
+	filename: String,
+	directory: String,
 	pub parser: Option<Box<Parser>>,
 	pub tree: Option<Box<Tree>>,
+	// TODO: we need to support custom tab width rendering
+	tabwidth: u8,
 }
 
 // TODO: need to actually make a Theme dict lol
@@ -39,6 +44,9 @@ impl Buffer {
 					name: name,
 					parser: Some(Box::new(parser)),
 					tree: Some(Box::new(tree)),
+					filename: String::from(""),
+					directory: String::from(""),
+					tabwidth: 4,
 				}
 			}
 			None => Buffer {
@@ -46,25 +54,34 @@ impl Buffer {
 				name: name,
 				parser: None,
 				tree: None,
+				filename: String::from(""),
+				directory: String::from(""),
+				tabwidth: 4,
 			},
 		}
 	}
 
-	pub fn highlight<'b>(&self, node: Node) -> Vec<Span> {
+	pub fn highlight<'b>(&self, node: Node, start: usize, end: usize) -> Vec<Span> {
 		let cursor = &mut node.walk();
 		let mut vector: Vec<Span> = vec![];
-		let mut token_end = 0;
+		let mut token_end = start;
 		loop {
 			if cursor.node().kind() == "string" || !cursor.goto_first_child() {
-				let start_byte = cursor.node().start_byte();
+				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {
 					vector.push(Span::raw(
-						self.content.slice(token_end..start_byte).as_str().unwrap(),
+						self.content
+							.slice(clamp(token_end, start, end)..clamp(start_byte, start, end))
+							.as_str()
+							.unwrap(),
 					));
 				}
 				vector.push(write_token(
 					self.content
-						.slice(start_byte..cursor.node().end_byte())
+						.slice(
+							clamp(start_byte, start, end)
+								..clamp(cursor.node().end_byte(), start, end),
+						)
 						.as_str()
 						.unwrap(),
 					cursor.node().kind(),
@@ -84,19 +101,37 @@ impl Buffer {
 	// rope to get each line individually. haven't tested how rope handles
 	// carriage returns yet,
 	pub fn render_with_viewport(&self, y: u32, h: u16) -> Vec<Spans> {
-		let mut lines: Vec<RopeSlice> = vec![];
+		struct Line<'a> {
+			rope: RopeSlice<'a>,
+			start_byte: usize,
+		}
+		let mut lines: Vec<Line> = vec![];
 
 		for i in y..cmp::min(y + (h as u32), self.content.len_lines() as u32) {
-			lines.push(self.content.line(i as usize));
+			lines.push(Line {
+				rope: self.content.line(i as usize),
+				start_byte: self.content.line_to_byte(i as usize),
+			});
 		}
 
 		lines
 			.into_iter()
 			.map(|x| {
-				Spans::from(match self.parser {
-					// Some(_) => self.highlight(self.tree.),
-					Some(_) => Span::raw(x.as_str().unwrap()),
-					None => Span::raw(x.as_str().unwrap()),
+				Spans::from(match self.tree.as_ref() {
+					Some(t) => Spans::from(
+						self.highlight(
+							t.root_node()
+								.descendant_for_byte_range(
+									x.start_byte,
+									x.start_byte + x.rope.len_bytes(),
+								)
+								.unwrap(),
+							x.start_byte,
+							x.start_byte + x.rope.len_bytes(),
+						),
+					),
+					// Some(t) => Span::raw(x.rope.as_str().unwrap()),
+					None => Spans::from(Span::raw(x.rope.as_str().unwrap())),
 				})
 			})
 			.collect::<Vec<Spans>>()
