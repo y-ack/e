@@ -1,6 +1,9 @@
 use crossterm::event::{read, Event};
+use ropey::Rope;
 use std::io::{self, Stdout};
 use tree_sitter::{Language, Parser, Tree};
+use tree_sitter_highlight::Highlighter;
+use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent};
 use tui::backend::CrosstermBackend;
 use tui::{
     layout::{Constraint, Direction, Layout},
@@ -15,9 +18,10 @@ extern "C" {
 }
 
 pub struct Buffer {
-    pub content: String,
+    pub content: Rope,
     pub name: String,
     pub parser: Parser,
+    pub highlight_config: HighlightConfiguration,
 }
 
 impl Buffer {
@@ -26,15 +30,34 @@ impl Buffer {
         let mut parser = Parser::new();
         parser.set_language(language).unwrap();
 
+        let mut js_highlight_config = HighlightConfiguration::new(
+            tree_sitter_javascript::language(),
+            tree_sitter_javascript::HIGHLIGHT_QUERY,
+            tree_sitter_javascript::INJECTION_QUERY,
+            tree_sitter_javascript::LOCALS_QUERY,
+        )
+        .unwrap();
+
+        let highlight_names: Vec<String> = ["function", "keyword"]
+            .iter()
+            .cloned()
+            .map(String::from)
+            .collect();
+
+        js_highlight_config.configure(&highlight_names);
+
         Buffer {
-            content: content,
+            content: Rope::from_str(&content),
             name: name,
             parser: parser,
+            highlight_config: js_highlight_config,
         }
     }
 
     pub fn get_tree(&mut self) -> Tree {
-        self.parser.parse(self.content.clone(), None).unwrap()
+        self.parser
+            .parse(self.content.clone().to_string(), None)
+            .unwrap()
     }
 }
 
@@ -50,6 +73,28 @@ impl<'a> Window<'a> {
 
     fn get_widget(&self) -> Paragraph {
         let text = Span::raw(self.buffer.content.clone());
+        let mut highlighter = Highlighter::new();
+        let highlights = highlighter
+            .highlight(
+                &self.buffer.highlight_config,
+                b"const x = new Y();",
+                None,
+                |_| None,
+            )
+            .unwrap();
+        for event in highlights {
+            match event.unwrap() {
+                HighlightEvent::Source { start, end } => {
+                    eprintln!("source: {}-{}", start, end);
+                }
+                HighlightEvent::HighlightStart(s) => {
+                    eprintln!("highlight style started: {:?}", s);
+                }
+                HighlightEvent::HighlightEnd => {
+                    eprintln!("highlight style ended");
+                }
+            }
+        }
         Paragraph::new(text)
             .block(
                 Block::default()
