@@ -4,7 +4,7 @@ use tui::{
 	layout::Rect,
 	style::{Color, Style},
 	text::{Span, Spans},
-	widgets::{Block, Borders, Paragraph, Wrap},
+	widgets::{Block, Borders, Paragraph},
 };
 
 use crate::buffer::Buffer;
@@ -21,6 +21,7 @@ pub struct Window<'a> {
 	// cursor: Point,
 }
 
+// TODO: need to actually make a Theme dict lol
 fn write_token<'a>(text: &'a str, token: &'static str) -> Span<'a> {
 	Span::styled(
 		text,
@@ -38,8 +39,8 @@ impl<'a> Window<'a> {
 		Window { buffer: buffer }
 	}
 
-	pub fn highlight(&self) -> Vec<Span> {
-		let cursor = &mut self.buffer.tree.walk();
+	pub fn highlight<'b>(&self) -> Vec<Span> {
+		let cursor = &mut self.buffer.tree.as_ref().unwrap().walk();
 		let mut vector: Vec<Span> = vec![];
 		let mut token_end = 0;
 		loop {
@@ -107,10 +108,11 @@ impl<'a> Window<'a> {
 	}
 
 	pub fn get_widget(&self, viewport: Rect) -> Paragraph {
-		// let text = Span::raw(self.buffer.content.clone());
-		let text = self.render_with_viewport(3, 0, viewport.width, viewport.height);
+		let text = match self.buffer.tree {
+			Some(_) => vec![Spans::from(self.highlight())],
+			None => self.render_with_viewport(0, 0, viewport.width, viewport.height),
+		};
 
-		// let text = Spans::from(self.highlight());
 		Paragraph::new(text)
 			.block(
 				Block::default()
