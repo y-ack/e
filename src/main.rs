@@ -1,6 +1,6 @@
 mod interface;
 
-use interface::{highlight, Buffer, Interface, Window};
+use interface::{Buffer, Interface, Window};
 
 fn main() {
     let mut interface = Interface::default();
@@ -15,10 +15,11 @@ fn main() {
     );
 
     let mut c = &mut buffer.tree.root_node().walk();
-    highlight(c);
 
-    // interface.windows.push(Window::new(&buffer));
-    // interface.windows.push(Window::new(&buffer2));
+    interface.windows.push(Window::new(&buffer));
+    interface.windows.push(Window::new(&buffer2));
+
+    interface.windows[0].highlight();
 
     // interface.clear().ok();
     // interface.draw().ok();

@@ -1,7 +1,7 @@
 use crossterm::event::{read, Event};
 use ropey::Rope;
 use std::io::{self, Stdout};
-use tree_sitter::{Language, Parser, Tree, TreeCursor};
+use tree_sitter::{Language, Parser, Tree};
 use tui::backend::CrosstermBackend;
 use tui::{
     layout::{Constraint, Direction, Layout},
@@ -50,24 +50,29 @@ pub struct Window<'a> {
     // TODO: should have Rect that defines viewport for the window
 }
 
-pub fn highlight(cursor: &mut TreeCursor) {
-    loop {
-        println!("{}", cursor.node().to_sexp());
-        if !cursor.goto_first_child() {
-            if !cursor.goto_next_sibling() {
-                if !cursor.goto_parent() {
-                    if !cursor.goto_next_sibling() {
-                        break;
+impl<'a> Window<'a> {
+    pub fn new(buffer: &'a Buffer) -> Window<'a> {
+        Window { buffer: buffer }
+    }
+
+    pub fn highlight(&self) {
+        let cursor = &mut self.buffer.tree.walk();
+        loop {
+            if !cursor.goto_first_child() {
+                println!(
+                    "{}",
+                    self.buffer
+                        .content
+                        .slice(cursor.node().start_byte()..cursor.node().end_byte())
+                );
+                println!("{}", cursor.node().kind());
+                while !cursor.goto_next_sibling() {
+                    if !cursor.goto_parent() {
+                        return;
                     }
                 }
             }
         }
-    }
-}
-
-impl<'a> Window<'a> {
-    pub fn new(buffer: &'a Buffer) -> Window<'a> {
-        Window { buffer: buffer }
     }
 
     fn get_widget(&self) -> Paragraph {
