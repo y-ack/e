@@ -1,12 +1,16 @@
+mod buffer;
 mod interface;
+mod window;
 
-use interface::{Buffer, Interface, Window};
+use buffer::Buffer;
+use interface::Interface;
+use window::Window;
 
 fn main() {
     let mut interface = Interface::default();
 
     let mut buffer = Buffer::new(
-        String::from("function hello_world() { console.log('hello, world!'); }"),
+        String::from("function hello_world() {\n  console.log('hello, world!');\n}"),
         String::from("test.js"),
     );
     let buffer2 = Buffer::new(
