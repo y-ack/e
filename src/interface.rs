@@ -1,4 +1,5 @@
 use crossterm::event::{read, Event};
+use ropey::Rope;
 use std::io::{self, Stdout};
 use tree_sitter::{Language, Parser, Tree};
 use tui::backend::CrosstermBackend;
@@ -15,7 +16,7 @@ extern "C" {
 }
 
 pub struct Buffer {
-    pub content: String,
+    pub content: Rope,
     pub name: String,
     pub parser: Parser,
 }
@@ -27,14 +28,16 @@ impl Buffer {
         parser.set_language(language).unwrap();
 
         Buffer {
-            content: content,
+            content: Rope::from_str(&content),
             name: name,
             parser: parser,
         }
     }
 
     pub fn get_tree(&mut self) -> Tree {
-        self.parser.parse(self.content.clone(), None).unwrap()
+        self.parser
+            .parse(self.content.clone().to_string(), None)
+            .unwrap()
     }
 }
 
