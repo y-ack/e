@@ -2,7 +2,7 @@ use crossterm::event::{read, Event};
 use ropey::Rope;
 use std::io::{self, Stdout};
 use tree_sitter::{Language, Parser, Tree};
-use tui::backend::CrosstermBackend;
+use tui::{backend::CrosstermBackend, text::Spans};
 use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -50,25 +50,52 @@ pub struct Window<'a> {
     // TODO: should have Rect that defines viewport for the window
 }
 
+fn write_token<'a>(text: &'a str, token: &'static str) -> Span<'a> {
+    Span::styled(
+        text,
+        Style::default().fg(match token {
+            "function" => Color::Rgb(246, 199, 255),
+            "identifier" => Color::Cyan,
+            "string" => Color::Yellow,
+            _ => Color::White,
+        }),
+    )
+}
+
 impl<'a> Window<'a> {
     pub fn new(buffer: &'a Buffer) -> Window<'a> {
         Window { buffer: buffer }
     }
 
-    pub fn highlight(&self) {
+    pub fn highlight(&self) -> Vec<Span> {
         let cursor = &mut self.buffer.tree.walk();
+        let mut vector: Vec<Span> = vec![];
+        let mut token_end = 0;
         loop {
-            if !cursor.goto_first_child() {
-                println!(
-                    "{}",
+            if cursor.node().kind() == "string" || !cursor.goto_first_child() {
+                let start_byte = cursor.node().start_byte();
+                if start_byte - token_end != 0 {
+                    // eprintln!("end token: {} start_byte: {}", token_end, start_byte);
+                    vector.push(Span::raw(
+                        self.buffer
+                            .content
+                            .slice(token_end..start_byte)
+                            .as_str()
+                            .unwrap(),
+                    ));
+                }
+                vector.push(write_token(
                     self.buffer
                         .content
-                        .slice(cursor.node().start_byte()..cursor.node().end_byte())
-                );
-                println!("{}", cursor.node().kind());
+                        .slice(start_byte..cursor.node().end_byte())
+                        .as_str()
+                        .unwrap(),
+                    cursor.node().kind(),
+                ));
+                token_end = cursor.node().end_byte();
                 while !cursor.goto_next_sibling() {
                     if !cursor.goto_parent() {
-                        return;
+                        return vector;
                     }
                 }
             }
@@ -76,7 +103,8 @@ impl<'a> Window<'a> {
     }
 
     fn get_widget(&self) -> Paragraph {
-        let text = Span::raw(self.buffer.content.clone());
+        // let text = Span::raw(self.buffer.content.clone());
+        let text = Spans::from(self.highlight());
         Paragraph::new(text)
             .block(
                 Block::default()
