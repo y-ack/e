@@ -11,6 +11,7 @@ crossterm = "0.19"
 tui = { version = "0.14", default-features = false, features = ['crossterm'] }
 tree-sitter = "0.19.3"
 ropey = "1.2.0"
+rlua = "0.17.0"
 
 [build-dependencies]
 cc="*"
