@@ -167,28 +167,45 @@ impl Buffer {
 			.unwrap()
 	}
 
-	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text: &'b str) -> Point {
+	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text:
+						   &'b str) -> Point {
+		let start_row = self.content.byte_to_line(start_byte);
+		let end_row = self.content.byte_to_line(end_byte);
+		let (_, start_row_byte_idx, _, _) = self.content.chunk_at_line_break(start_row);
+		let (_, end_row_byte_idx, _, _) = self.content.chunk_at_line_break(end_row);
 		let lowest = min(start_byte, end_byte);
 		let highest = max(start_byte, end_byte);
-		let edit = InputEdit {
-			start_byte: lowest,
-			old_end_byte: highest,
-			new_end_byte: lowest + text.len(),
-			start_position: Point {
-				row: self.content.byte_to_line(lowest),
-				column: self.content.start_byte,
+		match (self.parser.as_ref(),&mut self.tree.as_mut()) {
+			(Some(_parser),Some(tree)) => {
+				let edit = InputEdit {
+					start_byte: start_byte,
+					old_end_byte: end_byte,
+					new_end_byte: end_byte + text.len(),
+					start_position: Point {
+						row: start_row,
+						column: start_byte - start_row_byte_idx,
+					},
+					old_end_position: Point {
+						row: end_row,
+						column: end_byte - start_row_byte_idx,
+					},
+					new_end_position: Point {
+						row: self.content.byte_to_line(end_byte + text.len()),
+						column: highest - end_row_byte_idx,
+					},
+				};
+				tree.edit(&edit)
 			},
-			old_end_position: Point {
-				row: self.content.byte_to_line(end_byte),
-				column: end_byte - start_byte,
-			},
-			new_end_position: Point {
-				row: self.content.byte_to_line(end_byte),
-				column: end_byte,
-			},
-		};
+			_ => () // no parse language
+		}
+		// edit buffer content
 		self.content.remove(lowest..highest);
 		self.content.insert(lowest, text);
+		match (self.parser.as_ref(),self.tree.as_ref()) {
+			(Some(_parser),Some(_tree)) => self.tree = Some(Box::new(self.get_tree())),
+			_ => ()
+		}
+		
 		Point {
 			row: self.content.byte_to_line(end_byte),
 			column: end_byte,

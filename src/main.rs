@@ -22,9 +22,9 @@ fn main() {
 	// create a scratch buffer, there must be at LEAST one buffer
 	// that exists for the root window to attach to
 	editor.add_buffer(
-		String::from("-- This buffer is for text that is not saved, and for Lua evaluation\n-- Use this to interact with the built-in Lua interpreter."),
+		String::from("// This buffer is for text that is not saved, and for Lua evaluation\n// Use this to interact with the built-in Lua interpreter."),
 		String::from("*scratch*"),
-		None
+		Some(language)
 	);
 
 	let mut interface = Interface::new(&mut editor.buffers[0]).unwrap();
