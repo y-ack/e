@@ -1,8 +1,10 @@
+use std::cmp;
+use std::borrow::Cow;
+
 use cmp::{max, min};
 use num::clamp;
 use ropey::Rope;
 use ropey::RopeSlice;
-use std::cmp;
 use tree_sitter::{Language, Node, Parser, Tree};
 use tui::{
 	style::{Color, Style},
@@ -21,7 +23,8 @@ pub struct Buffer {
 }
 
 // TODO: need to actually make a Theme dict lol
-fn write_token<'a>(text: &'a str, token: &'static str) -> Span<'a> {
+fn write_token<'a, T>(text: T, token: &'static str) -> Span<'a>
+where T: Into<Cow<'a, str>> {
 	Span::styled(
 		text,
 		Style::default().fg(match token {
@@ -73,9 +76,7 @@ impl Buffer {
 				if start_byte - token_end != 0 {
 					vector.push(Span::raw(
 						self.content
-							.slice(clamp(token_end, start, end)..clamp(start_byte, start, end))
-							.as_str()
-							.unwrap(),
+							.slice(clamp(token_end, start, end)..clamp(start_byte, start, end)),
 					));
 				}
 				vector.push(write_token(
@@ -83,9 +84,7 @@ impl Buffer {
 						.slice(
 							clamp(start_byte, start, end)
 								..clamp(cursor.node().end_byte(), start, end),
-						)
-						.as_str()
-						.unwrap(),
+						),
 					cursor.node().kind(),
 				));
 				token_end = cursor.node().end_byte();
@@ -132,8 +131,8 @@ impl Buffer {
 							x.start_byte + x.rope.len_bytes(),
 						),
 					),
-					// Some(t) => Span::raw(x.rope.as_str().unwrap()),
-					None => Spans::from(Span::raw(x.rope.as_str().unwrap())),
+					// Some(t) => Span::raw(x.rope),
+					None => Spans::from(Span::raw(x.rope)),
 				})
 			})
 			.collect::<Vec<Spans>>()
