@@ -1,14 +1,21 @@
-use std::borrow::Cow;
-use std::cmp;
+use std::cmp::{self, max};
+use std::{borrow::Cow, cmp::min};
 
-use num::clamp;
 use ropey::Rope;
 use ropey::RopeSlice;
-use tree_sitter::{Language, Node, Parser, Tree};
+use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
 use tui::{
 	style::{Color, Style},
 	text::{Span, Spans},
 };
+
+/// State that the buffer can undo to
+struct Revision<'a> {
+	start_byte: usize,
+	old_end_byte: usize,
+	new_end_byte: usize,
+	text: &'a str,
+}
 
 pub struct Buffer {
 	pub content: Rope,
@@ -36,6 +43,16 @@ where
 			_ => Color::White,
 		}),
 	)
+}
+
+fn clamp(v: usize, x: usize, y: usize) -> usize {
+	if v < x {
+		x
+	} else if v > y {
+		y
+	} else {
+		v
+	}
 }
 
 impl Buffer {
@@ -150,8 +167,48 @@ impl Buffer {
 			.unwrap()
 	}
 
-	pub fn insert_at_point<'b>(&mut self, row: usize, col: usize, text: &'b str) {
-		self.content
-			.insert(self.content.line_to_byte(row) + col, text)
+	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text: &'b str) -> Point {
+		let lowest = min(start_byte, end_byte);
+		let highest = max(start_byte, end_byte);
+		let edit = InputEdit {
+			start_byte: lowest,
+			old_end_byte: highest,
+			new_end_byte: lowest + text.len(),
+			start_position: Point {
+				row: self.content.byte_to_line(lowest),
+				column: self.content.start_byte,
+			},
+			old_end_position: Point {
+				row: self.content.byte_to_line(end_byte),
+				column: end_byte - start_byte,
+			},
+			new_end_position: Point {
+				row: self.content.byte_to_line(end_byte),
+				column: end_byte,
+			},
+		};
+		self.content.remove(lowest..highest);
+		self.content.insert(lowest, text);
+		Point {
+			row: self.content.byte_to_line(end_byte),
+			column: end_byte,
+		}
+	}
+
+	pub fn insert_at_point<'b>(&mut self, point: Point, text: &'b str) -> Point {
+		let index = self.content.line_to_byte(point.row) + point.column;
+		let mut point = self.edit_region(index, index, text);
+		point.column += text.len();
+		point
+	}
+
+	pub fn delete_backwards_at_point(&mut self, point: Point, n: usize) -> Point {
+		let index = self.content.line_to_byte(point.row) + point.column;
+		self.edit_region(index, index - n, "")
+	}
+
+	pub fn delete_forwards_at_point(&mut self, point: Point, n: usize) {
+		let index = self.content.line_to_byte(point.row) + point.column;
+		self.edit_region(index, index + n, "");
 	}
 }
