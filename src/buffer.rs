@@ -57,16 +57,7 @@ fn clamp(v: usize, x: usize, y: usize) -> usize {
 }
 
 impl Buffer {
-	pub fn new<'b>(
-		content: String,
-		name: String,
-		language: Option<Language>,
-		lua: &'b Lua,
-	) -> Buffer {
-		lua.context(|lua_context| {
-			let globals = lua_context.globals();
-			globals.set("b", name.clone()).unwrap();
-		});
+	pub fn new<'b>(content: String, name: String, language: Option<Language>) -> Buffer {
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();
