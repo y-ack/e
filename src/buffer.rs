@@ -1,5 +1,5 @@
-use std::cmp;
 use std::borrow::Cow;
+use std::cmp;
 
 use cmp::{max, min};
 use num::clamp;
@@ -11,7 +11,9 @@ use tui::{
 	text::{Span, Spans},
 };
 
-pub struct Buffer {
+use crate::editor::{self, Editor};
+
+pub struct Buffer<'a> {
 	pub content: Rope,
 	pub name: String,
 	filename: String,
@@ -20,11 +22,14 @@ pub struct Buffer {
 	pub tree: Option<Box<Tree>>,
 	// TODO: we need to support custom tab width rendering
 	tabwidth: u8,
+	editor: Box<&'a Editor<'a>>,
 }
 
 // TODO: need to actually make a Theme dict lol
 fn write_token<'a, T>(text: T, token: &'static str) -> Span<'a>
-where T: Into<Cow<'a, str>> {
+where
+	T: Into<Cow<'a, str>>,
+{
 	Span::styled(
 		text,
 		Style::default().fg(match token {
@@ -37,8 +42,13 @@ where T: Into<Cow<'a, str>> {
 	)
 }
 
-impl Buffer {
-	pub fn new(content: String, name: String, language: Option<Language>) -> Buffer {
+impl<'a> Buffer<'a> {
+	pub fn new(
+		content: String,
+		name: String,
+		language: Option<Language>,
+		editor: Box<&'a Editor>,
+	) -> Buffer<'a> {
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();
@@ -52,6 +62,7 @@ impl Buffer {
 					filename: String::from(""),
 					directory: String::from(""),
 					tabwidth: 4,
+					editor: editor,
 				}
 			}
 			None => Buffer {
@@ -62,6 +73,7 @@ impl Buffer {
 				filename: String::from(""),
 				directory: String::from(""),
 				tabwidth: 4,
+				editor: editor,
 			},
 		}
 	}
@@ -77,17 +89,15 @@ impl Buffer {
 			if cursor.node().kind() == "string" || !cursor.goto_first_child() {
 				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {
-					vector.push(Span::raw(
-						self.content
-							.slice(clamp(token_end, start, end)..clamp(start_byte, start, end)),
-					));
+					vector
+						.push(Span::raw(self.content.slice(
+							clamp(token_end, start, end)..clamp(start_byte, start, end),
+						)));
 				}
 				vector.push(write_token(
-					self.content
-						.slice(
-							clamp(start_byte, start, end)
-								..clamp(cursor.node().end_byte(), start, end),
-						),
+					self.content.slice(
+						clamp(start_byte, start, end)..clamp(cursor.node().end_byte(), start, end),
+					),
 					cursor.node().kind(),
 				));
 				token_end = cursor.node().end_byte();
@@ -149,5 +159,10 @@ impl Buffer {
 				Some(&self.tree.as_ref().unwrap()),
 			)
 			.unwrap()
+	}
+
+	pub fn insert_at_point<'b>(&mut self, row: usize, col: usize, text: &'b str) {
+		self.content
+			.insert(self.content.line_to_byte(row) + col, text)
 	}
 }

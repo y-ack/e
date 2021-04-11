@@ -1,4 +1,9 @@
-use crossterm::event::{read, Event};
+use crossterm::{
+	event::{read, Event, KeyCode},
+	execute,
+	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use io::stdout;
 use std::{
 	borrow::Borrow,
 	io::{self, Stdout},
@@ -10,8 +15,8 @@ use tui::{
 	Terminal,
 };
 
-use crate::buffer::Buffer;
 use crate::window::Window;
+use crate::{buffer::Buffer, editor::Editor};
 
 pub struct WindowTree<'a> {
 	pub window: Box<Window<'a>>,
@@ -25,27 +30,43 @@ pub struct Interface<'a> {
 	// interface that specifies how to order the windows
 	/// the visual windows in the interface
 	pub root_window: WindowTree<'a>,
+	// FIXME: this is temporary and should be moved to the editor class maybe
+	// this is just so that we can destroy the interface during this testing
+	pub running: bool,
 	/// layout for tui-rs
 	// layout: Layout,
 	/// abstract interface to the terminal
 	terminal: Terminal<CrosstermBackend<Stdout>>,
+	editor: Box<&'a Editor<'a>>,
 }
 
 impl<'a> Interface<'a> {
-	pub fn new(scratch_buffer: &'a mut Buffer) -> Result<Interface<'a>, io::Error> {
+	pub fn new(
+		scratch_buffer: &'a mut Buffer<'a>,
+		editor: Box<&'a Editor>,
+	) -> Result<Interface<'a>, io::Error> {
+		enable_raw_mode().unwrap();
 		let stdout = io::stdout();
 		let backend = CrosstermBackend::new(stdout);
 
 		let interface = Interface {
 			root_window: WindowTree {
-				window: Box::new(Window::new(scratch_buffer)),
+				window: Box::new(Window::new(scratch_buffer, editor.get_reference())),
 				branch: None,
 				orientation: Direction::Vertical,
 			},
+			running: true,
 			terminal: Terminal::new(backend)?,
+			editor: editor,
 		};
+		execute!(io::stdout(), EnterAlternateScreen).unwrap();
 
 		Ok(interface)
+	}
+
+	pub fn destroy(&self) {
+		execute!(stdout(), LeaveAlternateScreen).unwrap();
+		disable_raw_mode().unwrap();
 	}
 
 	pub fn draw(&mut self) -> Result<(), io::Error> {
@@ -81,22 +102,23 @@ impl<'a> Interface<'a> {
 	}
 
 	pub fn update(&mut self) -> crossterm::Result<()> {
-		loop {
-			// `read()` blocks until an `Event` is available
-			match read()? {
-				Event::Key(event) => {
-					println!("AAAAAAAAAAAAAA");
-					self.root_window.window.insert_at_cursor("hello");
+		// `read()` blocks until an `Event` is available
+		Ok(match read()? {
+			Event::Key(event) => {
+				if event == KeyCode::Char('q').into() {
+					self.running = false;
 				}
-				Event::Mouse(event) => println!("{:?}", event),
-				Event::Resize(_, _) => {
-					self.terminal
-						.autoresize()
-						.expect("Cannot reload the terminal successfully");
-					self.clear().ok();
-					self.draw().ok();
-				}
+				// self.root_window.window.insert_at_cursor(event.code);
+				// self.root_window.window.insert_at_cursor(event.code);
+				self.draw().ok();
 			}
-		}
+			Event::Mouse(event) => println!("{:?}", event),
+			Event::Resize(_, _) => {
+				self.terminal
+					.autoresize()
+					.expect("Cannot reload the terminal successfully");
+				self.draw().ok();
+			}
+		})
 	}
 }
