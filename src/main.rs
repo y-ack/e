@@ -17,7 +17,7 @@ fn main() {
 	// TODO: we probably need to store all of the available tree sitter
 	// configurations somewhere at some point.
 	let language = unsafe { tree_sitter_javascript() };
-	let mut editor = Editor { buffers: vec![] };
+	let mut editor = Editor::default();
 
 	// create a scratch buffer, there must be at LEAST one buffer
 	// that exists for the root window to attach to

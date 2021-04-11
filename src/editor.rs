@@ -11,3 +11,9 @@ impl Editor {
 		self.buffers.push(Buffer::new(content, name, language));
 	}
 }
+
+impl Default for Editor {
+	fn default() -> Self {
+		Editor { buffers: vec![] }
+	}
+}

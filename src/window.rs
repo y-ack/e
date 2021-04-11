@@ -1,3 +1,4 @@
+use tree_sitter::Point;
 use tui::{
 	layout::Rect,
 	style::{Color, Style},
@@ -5,11 +6,6 @@ use tui::{
 };
 
 use crate::buffer::Buffer;
-
-struct Point {
-	x: usize,
-	y: usize,
-}
 
 /// A window/visible buffer
 pub struct Window<'a> {
@@ -22,15 +18,15 @@ impl<'a> Window<'a> {
 	pub fn new(buffer: &'a mut Buffer) -> Window<'a> {
 		Window {
 			buffer: buffer,
-			cursor: Point { x: 0, y: 0 },
-			view_offset: Point { x: 0, y: 0 },
+			cursor: Point { column: 5, row: 0 },
+			view_offset: Point { column: 0, row: 0 },
 		}
 	}
 
 	pub fn get_widget(&self, viewport: Rect) -> Paragraph {
 		let text = self
 			.buffer
-			.render_with_viewport(self.view_offset.y as u32, viewport.height);
+			.render_with_viewport(self.view_offset.row as u32, viewport.height);
 
 		Paragraph::new(text)
 			.block(
@@ -39,12 +35,37 @@ impl<'a> Window<'a> {
 					.borders(Borders::ALL),
 			)
 			.style(Style::default().fg(Color::White).bg(Color::Black))
-			.scroll((0, self.view_offset.x as u16))
+			.scroll((0, self.view_offset.column as u16))
 			.wrap(Wrap { trim: false })
 	}
 
 	pub fn insert_at_cursor(&mut self, text: &'a str) {
-		self.buffer
-			.insert_at_point(self.cursor.y, self.cursor.x, text);
+		self.cursor = self.buffer.insert_at_point(
+			Point {
+				row: self.cursor.row,
+				column: self.cursor.column,
+			},
+			text,
+		);
+	}
+
+	pub fn delete_backwards_at_cursor(&mut self, n: usize) {
+		self.cursor = self.buffer.delete_backwards_at_point(
+			Point {
+				row: self.cursor.row,
+				column: self.cursor.column,
+			},
+			n,
+		);
+	}
+
+	pub fn delete_forwards_at_cursor(&mut self, n: usize) {
+		self.buffer.delete_forwards_at_point(
+			Point {
+				row: self.cursor.row,
+				column: self.cursor.column,
+			},
+			n,
+		);
 	}
 }

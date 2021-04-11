@@ -102,8 +102,13 @@ impl<'a> Interface<'a> {
 			Event::Key(event) => {
 				if event == KeyCode::Char('q').into() {
 					self.running = false;
+				} else if event == KeyCode::Char('p').into() {
+					self.root_window.window.delete_backwards_at_cursor(1);
+				} else if event == KeyCode::Char('o').into() {
+					self.root_window.window.delete_forwards_at_cursor(1);
+				} else {
+					self.root_window.window.insert_at_cursor("hello! ");
 				}
-				// self.root_window.window.insert_at_cursor(event.code);
 				// self.root_window.window.insert_at_cursor(event.code);
 				self.draw().ok();
 			}
