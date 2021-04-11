@@ -1,15 +1,22 @@
-use std::cmp;
-use std::borrow::Cow;
+use std::cmp::{self, max};
+use std::{borrow::Cow, cmp::min};
 
-use cmp::{max, min};
-use num::clamp;
+use rlua::Lua;
 use ropey::Rope;
 use ropey::RopeSlice;
-use tree_sitter::{Language, Node, Parser, Tree};
+use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
 use tui::{
 	style::{Color, Style},
 	text::{Span, Spans},
 };
+
+/// State that the buffer can undo to
+struct Revision<'a> {
+	start_byte: usize,
+	old_end_byte: usize,
+	new_end_byte: usize,
+	text: &'a str,
+}
 
 pub struct Buffer {
 	pub content: Rope,
@@ -24,7 +31,9 @@ pub struct Buffer {
 
 // TODO: need to actually make a Theme dict lol
 fn write_token<'a, T>(text: T, token: &'static str) -> Span<'a>
-where T: Into<Cow<'a, str>> {
+where
+	T: Into<Cow<'a, str>>,
+{
 	Span::styled(
 		text,
 		Style::default().fg(match token {
@@ -37,8 +46,27 @@ where T: Into<Cow<'a, str>> {
 	)
 }
 
+fn clamp(v: usize, x: usize, y: usize) -> usize {
+	if v < x {
+		x
+	} else if v > y {
+		y
+	} else {
+		v
+	}
+}
+
 impl Buffer {
-	pub fn new(content: String, name: String, language: Option<Language>) -> Buffer {
+	pub fn new<'b>(
+		content: String,
+		name: String,
+		language: Option<Language>,
+		lua: &'b Lua,
+	) -> Buffer {
+		lua.context(|lua_context| {
+			let globals = lua_context.globals();
+			globals.set("b", name.clone()).unwrap();
+		});
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();
@@ -71,20 +99,21 @@ impl Buffer {
 		let mut vector: Vec<Span> = vec![];
 		let mut token_end = start;
 		loop {
+			// we select if it is a kind of "string" because the children of
+			// the "string" are the symbols surrounding the string and doesn't
+			// include the literal between them
 			if cursor.node().kind() == "string" || !cursor.goto_first_child() {
 				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {
-					vector.push(Span::raw(
-						self.content
-							.slice(clamp(token_end, start, end)..clamp(start_byte, start, end)),
-					));
+					vector
+						.push(Span::raw(self.content.slice(
+							clamp(token_end, start, end)..clamp(start_byte, start, end),
+						)));
 				}
 				vector.push(write_token(
-					self.content
-						.slice(
-							clamp(start_byte, start, end)
-								..clamp(cursor.node().end_byte(), start, end),
-						),
+					self.content.slice(
+						clamp(start_byte, start, end)..clamp(cursor.node().end_byte(), start, end),
+					),
 					cursor.node().kind(),
 				));
 				token_end = cursor.node().end_byte();
@@ -146,5 +175,66 @@ impl Buffer {
 				Some(&self.tree.as_ref().unwrap()),
 			)
 			.unwrap()
+	}
+
+	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text: &'b str) -> Point {
+		let start_row = self.content.byte_to_line(start_byte);
+		let end_row = self.content.byte_to_line(end_byte);
+		let (_, start_row_byte_idx, _, _) = self.content.chunk_at_line_break(start_row);
+		let (_, end_row_byte_idx, _, _) = self.content.chunk_at_line_break(end_row);
+		let lowest = min(start_byte, end_byte);
+		let highest = max(start_byte, end_byte);
+		match (self.parser.as_ref(), &mut self.tree.as_mut()) {
+			(Some(_parser), Some(tree)) => {
+				let edit = InputEdit {
+					start_byte: start_byte,
+					old_end_byte: end_byte,
+					new_end_byte: end_byte + text.len(),
+					start_position: Point {
+						row: start_row,
+						column: start_byte - start_row_byte_idx,
+					},
+					old_end_position: Point {
+						row: end_row,
+						column: end_byte - start_row_byte_idx,
+					},
+					new_end_position: Point {
+						row: self.content.byte_to_line(end_byte + text.len()),
+						column: highest - end_row_byte_idx,
+					},
+				};
+				tree.edit(&edit)
+			}
+			_ => (), // no parse language
+		}
+		// edit buffer content
+		self.content.remove(lowest..highest);
+		self.content.insert(lowest, text);
+		match (self.parser.as_ref(), self.tree.as_ref()) {
+			(Some(_parser), Some(_tree)) => self.tree = Some(Box::new(self.get_tree())),
+			_ => (),
+		}
+
+		Point {
+			row: self.content.byte_to_line(end_byte),
+			column: end_byte,
+		}
+	}
+
+	pub fn insert_at_point<'b>(&mut self, point: Point, text: &'b str) -> Point {
+		let index = self.content.line_to_byte(point.row) + point.column;
+		let mut point = self.edit_region(index, index, text);
+		point.column += text.len();
+		point
+	}
+
+	pub fn delete_backwards_at_point(&mut self, point: Point, n: usize) -> Point {
+		let index = self.content.line_to_byte(point.row) + point.column;
+		self.edit_region(index, index - n, "")
+	}
+
+	pub fn delete_forwards_at_point(&mut self, point: Point, n: usize) {
+		let index = self.content.line_to_byte(point.row) + point.column;
+		self.edit_region(index, index + n, "");
 	}
 }

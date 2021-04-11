@@ -1,4 +1,9 @@
-use crossterm::event::{read, Event};
+use crossterm::{
+	event::{read, Event, KeyCode},
+	execute,
+	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use io::stdout;
 use std::{
 	borrow::Borrow,
 	io::{self, Stdout},
@@ -25,6 +30,9 @@ pub struct Interface<'a> {
 	// interface that specifies how to order the windows
 	/// the visual windows in the interface
 	pub root_window: WindowTree<'a>,
+	// FIXME: this is temporary and should be moved to the editor class maybe
+	// this is just so that we can destroy the interface during this testing
+	pub running: bool,
 	/// layout for tui-rs
 	// layout: Layout,
 	/// abstract interface to the terminal
@@ -32,7 +40,8 @@ pub struct Interface<'a> {
 }
 
 impl<'a> Interface<'a> {
-	pub fn new(scratch_buffer: &'a Buffer) -> Result<Interface<'a>, io::Error> {
+	pub fn new(scratch_buffer: &'a mut Buffer) -> Result<Interface<'a>, io::Error> {
+		enable_raw_mode().unwrap();
 		let stdout = io::stdout();
 		let backend = CrosstermBackend::new(stdout);
 
@@ -42,10 +51,17 @@ impl<'a> Interface<'a> {
 				branch: None,
 				orientation: Direction::Vertical,
 			},
+			running: true,
 			terminal: Terminal::new(backend)?,
 		};
+		execute!(io::stdout(), EnterAlternateScreen).unwrap();
 
 		Ok(interface)
+	}
+
+	pub fn destroy(&self) {
+		execute!(stdout(), LeaveAlternateScreen).unwrap();
+		disable_raw_mode().unwrap();
 	}
 
 	pub fn draw(&mut self) -> Result<(), io::Error> {
@@ -81,19 +97,26 @@ impl<'a> Interface<'a> {
 	}
 
 	pub fn update(&mut self) -> crossterm::Result<()> {
-		loop {
-			// `read()` blocks until an `Event` is available
-			match read()? {
-				Event::Key(event) => println!("{:?}", event),
-				Event::Mouse(event) => println!("{:?}", event),
-				Event::Resize(_, _) => {
-					self.terminal
-						.autoresize()
-						.expect("Cannot reload the terminal successfully");
-					self.clear().ok();
-					self.draw().ok();
+		// `read()` blocks until an `Event` is available
+		Ok(match read()? {
+			Event::Key(event) => {
+				if event == KeyCode::Char('q').into() {
+					self.running = false;
+				} else if event == KeyCode::Backspace.into() {
+					self.root_window.window.delete_backwards_at_cursor(1);
+				} else {
+					self.root_window.window.insert_at_cursor("hello! ");
 				}
+				// self.root_window.window.insert_at_cursor(event.code);
+				self.draw().ok();
 			}
-		}
+			Event::Mouse(event) => println!("{:?}", event),
+			Event::Resize(_, _) => {
+				self.terminal
+					.autoresize()
+					.expect("Cannot reload the terminal successfully");
+				self.draw().ok();
+			}
+		})
 	}
 }
