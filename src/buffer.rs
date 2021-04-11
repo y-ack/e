@@ -68,6 +68,9 @@ impl Buffer {
 		let mut vector: Vec<Span> = vec![];
 		let mut token_end = start;
 		loop {
+			// we select if it is a kind of "string" because the children of
+			// the "string" are the symbols surrounding the string and doesn't
+			// include the literal between them
 			if cursor.node().kind() == "string" || !cursor.goto_first_child() {
 				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {

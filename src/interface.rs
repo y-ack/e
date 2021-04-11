@@ -32,7 +32,7 @@ pub struct Interface<'a> {
 }
 
 impl<'a> Interface<'a> {
-	pub fn new(scratch_buffer: &'a Buffer) -> Result<Interface<'a>, io::Error> {
+	pub fn new(scratch_buffer: &'a mut Buffer) -> Result<Interface<'a>, io::Error> {
 		let stdout = io::stdout();
 		let backend = CrosstermBackend::new(stdout);
 
@@ -84,7 +84,10 @@ impl<'a> Interface<'a> {
 		loop {
 			// `read()` blocks until an `Event` is available
 			match read()? {
-				Event::Key(event) => println!("{:?}", event),
+				Event::Key(event) => {
+					println!("AAAAAAAAAAAAAA");
+					self.root_window.window.insert_at_cursor("hello");
+				}
 				Event::Mouse(event) => println!("{:?}", event),
 				Event::Resize(_, _) => {
 					self.terminal
