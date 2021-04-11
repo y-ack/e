@@ -1,11 +1,13 @@
+use tree_sitter::Language;
+
 use crate::buffer::Buffer;
 
-pub struct Editor<'a> {
-	pub buffers: Vec<Buffer<'a>>,
+pub struct Editor {
+	pub buffers: Vec<Buffer>,
 }
 
-impl<'a> Editor<'a> {
-	pub fn get_reference(&self) -> Box<&Editor> {
-		Box::new(self)
+impl Editor {
+	pub fn add_buffer(&mut self, content: String, name: String, language: Option<Language>) {
+		self.buffers.push(Buffer::new(content, name, language));
 	}
 }

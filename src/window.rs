@@ -4,7 +4,7 @@ use tui::{
 	widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use crate::{buffer::Buffer, editor::Editor};
+use crate::buffer::Buffer;
 
 struct Point {
 	x: usize,
@@ -13,19 +13,17 @@ struct Point {
 
 /// A window/visible buffer
 pub struct Window<'a> {
-	buffer: &'a mut Buffer<'a>,
+	buffer: &'a mut Buffer,
 	cursor: Point,
 	view_offset: Point,
-	editor: Box<&'a Editor<'a>>,
 }
 
 impl<'a> Window<'a> {
-	pub fn new(buffer: &'a mut Buffer<'a>, editor: Box<&'a Editor>) -> Window<'a> {
+	pub fn new(buffer: &'a mut Buffer) -> Window<'a> {
 		Window {
 			buffer: buffer,
 			cursor: Point { x: 0, y: 0 },
 			view_offset: Point { x: 0, y: 0 },
-			editor: editor,
 		}
 	}
 

@@ -15,8 +15,8 @@ use tui::{
 	Terminal,
 };
 
+use crate::buffer::Buffer;
 use crate::window::Window;
-use crate::{buffer::Buffer, editor::Editor};
 
 pub struct WindowTree<'a> {
 	pub window: Box<Window<'a>>,
@@ -37,27 +37,22 @@ pub struct Interface<'a> {
 	// layout: Layout,
 	/// abstract interface to the terminal
 	terminal: Terminal<CrosstermBackend<Stdout>>,
-	editor: Box<&'a Editor<'a>>,
 }
 
 impl<'a> Interface<'a> {
-	pub fn new(
-		scratch_buffer: &'a mut Buffer<'a>,
-		editor: Box<&'a Editor>,
-	) -> Result<Interface<'a>, io::Error> {
+	pub fn new(scratch_buffer: &'a mut Buffer) -> Result<Interface<'a>, io::Error> {
 		enable_raw_mode().unwrap();
 		let stdout = io::stdout();
 		let backend = CrosstermBackend::new(stdout);
 
 		let interface = Interface {
 			root_window: WindowTree {
-				window: Box::new(Window::new(scratch_buffer, editor.get_reference())),
+				window: Box::new(Window::new(scratch_buffer)),
 				branch: None,
 				orientation: Direction::Vertical,
 			},
 			running: true,
 			terminal: Terminal::new(backend)?,
-			editor: editor,
 		};
 		execute!(io::stdout(), EnterAlternateScreen).unwrap();
 

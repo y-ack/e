@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::cmp;
 
-use cmp::{max, min};
 use num::clamp;
 use ropey::Rope;
 use ropey::RopeSlice;
@@ -11,9 +10,7 @@ use tui::{
 	text::{Span, Spans},
 };
 
-use crate::editor::{self, Editor};
-
-pub struct Buffer<'a> {
+pub struct Buffer {
 	pub content: Rope,
 	pub name: String,
 	filename: String,
@@ -22,7 +19,6 @@ pub struct Buffer<'a> {
 	pub tree: Option<Box<Tree>>,
 	// TODO: we need to support custom tab width rendering
 	tabwidth: u8,
-	editor: Box<&'a Editor<'a>>,
 }
 
 // TODO: need to actually make a Theme dict lol
@@ -42,13 +38,8 @@ where
 	)
 }
 
-impl<'a> Buffer<'a> {
-	pub fn new(
-		content: String,
-		name: String,
-		language: Option<Language>,
-		editor: Box<&'a Editor>,
-	) -> Buffer<'a> {
+impl Buffer {
+	pub fn new(content: String, name: String, language: Option<Language>) -> Buffer {
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();
@@ -62,7 +53,6 @@ impl<'a> Buffer<'a> {
 					filename: String::from(""),
 					directory: String::from(""),
 					tabwidth: 4,
-					editor: editor,
 				}
 			}
 			None => Buffer {
@@ -73,7 +63,6 @@ impl<'a> Buffer<'a> {
 				filename: String::from(""),
 				directory: String::from(""),
 				tabwidth: 4,
-				editor: editor,
 			},
 		}
 	}
