@@ -3,11 +3,9 @@ mod editor;
 mod interface;
 mod window;
 
-use buffer::Buffer;
 use editor::Editor;
-use interface::{Interface, WindowTree};
+use interface::Interface;
 use tree_sitter::Language;
-use window::Window;
 
 extern "C" {
 	fn tree_sitter_javascript() -> Language;

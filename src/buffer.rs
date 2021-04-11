@@ -1,6 +1,7 @@
 use std::cmp::{self, max};
 use std::{borrow::Cow, cmp::min};
 
+use rlua::Lua;
 use ropey::Rope;
 use ropey::RopeSlice;
 use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
@@ -56,7 +57,16 @@ fn clamp(v: usize, x: usize, y: usize) -> usize {
 }
 
 impl Buffer {
-	pub fn new(content: String, name: String, language: Option<Language>) -> Buffer {
+	pub fn new<'b>(
+		content: String,
+		name: String,
+		language: Option<Language>,
+		lua: &'b Lua,
+	) -> Buffer {
+		lua.context(|lua_context| {
+			let globals = lua_context.globals();
+			globals.set("b", name.clone()).unwrap();
+		});
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();
@@ -167,16 +177,15 @@ impl Buffer {
 			.unwrap()
 	}
 
-	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text:
-						   &'b str) -> Point {
+	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text: &'b str) -> Point {
 		let start_row = self.content.byte_to_line(start_byte);
 		let end_row = self.content.byte_to_line(end_byte);
 		let (_, start_row_byte_idx, _, _) = self.content.chunk_at_line_break(start_row);
 		let (_, end_row_byte_idx, _, _) = self.content.chunk_at_line_break(end_row);
 		let lowest = min(start_byte, end_byte);
 		let highest = max(start_byte, end_byte);
-		match (self.parser.as_ref(),&mut self.tree.as_mut()) {
-			(Some(_parser),Some(tree)) => {
+		match (self.parser.as_ref(), &mut self.tree.as_mut()) {
+			(Some(_parser), Some(tree)) => {
 				let edit = InputEdit {
 					start_byte: start_byte,
 					old_end_byte: end_byte,
@@ -195,17 +204,17 @@ impl Buffer {
 					},
 				};
 				tree.edit(&edit)
-			},
-			_ => () // no parse language
+			}
+			_ => (), // no parse language
 		}
 		// edit buffer content
 		self.content.remove(lowest..highest);
 		self.content.insert(lowest, text);
-		match (self.parser.as_ref(),self.tree.as_ref()) {
-			(Some(_parser),Some(_tree)) => self.tree = Some(Box::new(self.get_tree())),
-			_ => ()
+		match (self.parser.as_ref(), self.tree.as_ref()) {
+			(Some(_parser), Some(_tree)) => self.tree = Some(Box::new(self.get_tree())),
+			_ => (),
 		}
-		
+
 		Point {
 			row: self.content.byte_to_line(end_byte),
 			column: end_byte,
