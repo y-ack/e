@@ -10,8 +10,7 @@ pub struct Editor {
 
 impl Editor {
 	pub fn add_buffer(&mut self, content: String, name: String, language: Option<Language>) {
-		self.buffers
-			.push(Buffer::new(content, name, language, &self.lua));
+		self.buffers.push(Buffer::new(content, name, language));
 	}
 }
 

@@ -1,4 +1,6 @@
-e
+# e
+
+![image of editor window](screen.png)
 
 a text editor designed to be extendable by lua in the same way that
 emacs can.
