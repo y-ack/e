@@ -28,6 +28,7 @@ fn write_token<'a>(text: &'a str, token: &'static str) -> Span<'a> {
 			"function" => Color::Rgb(246, 199, 255),
 			"identifier" => Color::Cyan,
 			"string" => Color::Yellow,
+			"comment" => Color::Green,
 			_ => Color::White,
 		}),
 	)

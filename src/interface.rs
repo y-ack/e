@@ -89,7 +89,6 @@ impl<'a> Interface<'a> {
 				Event::Resize(_, _) => {
 					self.terminal
 						.autoresize()
-						.ok()
 						.expect("Cannot reload the terminal successfully");
 					self.clear().ok();
 					self.draw().ok();
