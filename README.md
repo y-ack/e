@@ -10,3 +10,10 @@ experience issues that emacs has.
 
 this is first time experience with rust and tree sitter
 so this is barely anything resembling a complete project lol
+
+## build instructions
+```sh
+git clone https://github.com/y-ack/e.git --depth=1 --recursive
+cd e
+cargo run
+```
