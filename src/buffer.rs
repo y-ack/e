@@ -1,3 +1,4 @@
+use cmp::{max, min};
 use num::clamp;
 use ropey::Rope;
 use ropey::RopeSlice;

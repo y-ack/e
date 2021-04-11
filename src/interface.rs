@@ -1,19 +1,30 @@
 use crossterm::event::{read, Event};
-use std::io::{self, Stdout};
-use tui::backend::CrosstermBackend;
+use std::{
+	borrow::Borrow,
+	io::{self, Stdout},
+};
+use tui::{backend::CrosstermBackend, layout::Rect};
 use tui::{
 	layout::{Constraint, Direction, Layout},
+	terminal::Frame,
 	Terminal,
 };
 
+use crate::buffer::Buffer;
 use crate::window::Window;
+
+pub struct WindowTree<'a> {
+	pub window: Box<Window<'a>>,
+	pub branch: Option<Box<&'a WindowTree<'a>>>,
+	pub orientation: Direction,
+}
 
 /// The full interface that will be rendered on the screen
 pub struct Interface<'a> {
 	// TODO: we should probably have a some high level configuration for the
 	// interface that specifies how to order the windows
 	/// the visual windows in the interface
-	pub windows: Vec<Window<'a>>,
+	pub root_window: WindowTree<'a>,
 	/// layout for tui-rs
 	// layout: Layout,
 	/// abstract interface to the terminal
@@ -21,23 +32,47 @@ pub struct Interface<'a> {
 }
 
 impl<'a> Interface<'a> {
+	pub fn new(scratch_buffer: &'a Buffer) -> Result<Interface<'a>, io::Error> {
+		let stdout = io::stdout();
+		let backend = CrosstermBackend::new(stdout);
+
+		let interface = Interface {
+			root_window: WindowTree {
+				window: Box::new(Window::new(scratch_buffer)),
+				branch: None,
+				orientation: Direction::Vertical,
+			},
+			terminal: Terminal::new(backend)?,
+		};
+
+		Ok(interface)
+	}
+
 	pub fn draw(&mut self) -> Result<(), io::Error> {
-		let windows = &self.windows;
+		let root_window = Box::new(self.root_window.borrow());
 		self.terminal.draw(|f| {
-			if windows.len() != 0 {
-				let layout = Layout::default()
-					.direction(Direction::Vertical)
+			fn generate_layouts<'b>(
+				x: Box<&WindowTree<'b>>,
+				layout: Rect,
+				f: &mut Frame<CrosstermBackend<Stdout>>,
+			) {
+				let l = Layout::default()
+					.direction(x.orientation.clone())
 					.margin(0)
-					.constraints([Constraint::Percentage(100)].as_ref())
-					.split(f.size());
-				for i in windows.iter().zip(layout.iter()) {
-					let (w, c) = i;
-					let widget = w.get_widget(*c);
-					f.render_widget(widget, *c);
+					.constraints(match x.branch {
+						Some(_) => {
+							[Constraint::Percentage(50), Constraint::Percentage(50)].as_ref()
+						}
+						None => [Constraint::Percentage(100)].as_ref(),
+					})
+					.split(layout);
+				f.render_widget(x.window.get_widget(l[0]), l[0]);
+				match x.branch.clone() {
+					Some(b) => generate_layouts(b, l[1], f),
+					None => {}
 				}
-			} else {
-				panic!("There are windows to render!");
 			}
+			generate_layouts(root_window, f.size(), f);
 		})
 	}
 
@@ -60,26 +95,6 @@ impl<'a> Interface<'a> {
 					self.draw().ok();
 				}
 			}
-		}
-	}
-}
-
-impl<'a> Default for Interface<'a> {
-	fn default() -> Interface<'a> {
-		let result: Result<Interface, io::Error> = (|| {
-			let stdout = io::stdout();
-			let backend = CrosstermBackend::new(stdout);
-
-			let interface = Interface {
-				windows: vec![],
-				terminal: Terminal::new(backend)?,
-			};
-
-			Ok(interface)
-		})();
-		match result {
-			Ok(v) => v,
-			Err(_) => panic!("Unable to create an Interface instance. Cannot proceed."),
 		}
 	}
 }
