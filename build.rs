@@ -17,6 +17,6 @@ fn main() {
 	// 	.file(lua_dir.join("scanner.cc"))
 	// 	// .file(lua_dir.join("binding.cc"))
 	// 	.warnings(false)
-	// 	.cpp(true)
+	// 	// .cpp(true)
 	// 	.compile("tree-sitter-lua");
 }
