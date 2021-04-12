@@ -1,4 +1,4 @@
-use rlua::Lua;
+use mlua::Lua;
 use tree_sitter::Language;
 
 use crate::buffer::Buffer;
