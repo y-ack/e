@@ -25,3 +25,11 @@ things that shouldn't be hardcoded
    - implications: line wrapping causes scroll position to require two numbers, real line and wrapped line (offset)
  - window display attributes
    - border display is rule based: always on and always off are obvious, but the function to decide which borders are on would look at neighbors to decide whether to draw a border
+   
+** lua packages
+ - basic editing support package (with the default callbacks attached to various keys
+   - cursor motion, window motion, indentation, commenting
+ - a git porcelain
+ - a completion and other ide feature-providing package (probably using lsp)
+ - package for displaying and configuring editor variables (e.g. listing variables by package, keybinds, faces)
+ - modeline probably goes here(?)
