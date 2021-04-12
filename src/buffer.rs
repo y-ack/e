@@ -136,10 +136,10 @@ impl Buffer {
 				start_byte: self.content.line_to_byte(i as usize),
 			});
 		}
-		match self.tree.as_ref() {
-			Some(t) => println!("{}", t.root_node().to_sexp()),
-			None => (),
-		}
+		// match self.tree.as_ref() {
+		// 	Some(t) => println!("{}", t.root_node().to_sexp()),
+		// 	None => (),
+		// }
 
 		lines
 			.into_iter()
