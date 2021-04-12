@@ -3,6 +3,7 @@ use crossterm::{
 	execute,
 	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+//use std::char::{encode_utf8};
 use io::stdout;
 use std::{
 	borrow::Borrow,
@@ -98,14 +99,29 @@ impl<'a> Interface<'a> {
 
 	pub fn update(&mut self) -> crossterm::Result<()> {
 		// `read()` blocks until an `Event` is available
+
 		Ok(match read()? {
 			Event::Key(event) => {
 				if event == KeyCode::Char('q').into() {
 					self.running = false;
 				} else if event == KeyCode::Backspace.into() {
 					self.root_window.window.delete_backwards_at_cursor(1);
+				} else if event == KeyCode::Delete.into() {
+					self.root_window.window.delete_forwards_at_cursor(1);
 				} else {
-					self.root_window.window.insert_at_cursor("hello! ");
+					self.root_window.window.insert_at_cursor(
+						match event.code {
+							KeyCode::Char('a') => "a",
+							KeyCode::Char('b') => "b",
+							KeyCode::Char('c') => "c",
+							KeyCode::Char('d') => "d",
+							KeyCode::Char('-') => "-",
+							KeyCode::Char(' ') => " ",
+							KeyCode::Char('(') => "(",
+							KeyCode::Char(')') => ")",
+							_ => "hello! "
+						}
+					);
 				}
 				// self.root_window.window.insert_at_cursor(event.code);
 				self.draw().ok();

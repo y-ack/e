@@ -4,7 +4,7 @@ use std::{borrow::Cow, cmp::min};
 use rlua::Lua;
 use ropey::Rope;
 use ropey::RopeSlice;
-use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
+use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree, Query, QueryCursor};
 use tui::{
 	style::{Color, Style},
 	text::{Span, Spans},
@@ -89,11 +89,13 @@ impl Buffer {
 		let cursor = &mut node.walk();
 		let mut vector: Vec<Span> = vec![];
 		let mut token_end = start;
+		//let comment = Query::new(node.language(), "(comment)").unwrap();
+		//let qc = QueryCursor::new();
 		loop {
 			// we select if it is a kind of "string" because the children of
 			// the "string" are the symbols surrounding the string and doesn't
 			// include the literal between them
-			if cursor.node().kind() == "string" || !cursor.goto_first_child() {
+			if cursor.node().kind() == "string" || cursor.node().kind() == "comment" || !cursor.goto_first_child() {
 				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {
 					vector
@@ -134,6 +136,10 @@ impl Buffer {
 				start_byte: self.content.line_to_byte(i as usize),
 			});
 		}
+		// match self.tree.as_ref() {
+		// 	Some(t) => println!("{}", t.root_node().to_sexp()),
+		// 	None => (),
+		// }
 
 		lines
 			.into_iter()
@@ -175,12 +181,14 @@ impl Buffer {
 		let (_, end_row_byte_idx, _, _) = self.content.chunk_at_line_break(end_row);
 		let lowest = min(start_byte, end_byte);
 		let highest = max(start_byte, end_byte);
+
 		match (self.parser.as_ref(), &mut self.tree.as_mut()) {
 			(Some(_parser), Some(tree)) => {
 				let edit = InputEdit {
 					start_byte: start_byte,
 					old_end_byte: end_byte,
 					new_end_byte: end_byte + text.len(),
+
 					start_position: Point {
 						row: start_row,
 						column: start_byte - start_row_byte_idx,
@@ -191,16 +199,25 @@ impl Buffer {
 					},
 					new_end_position: Point {
 						row: self.content.byte_to_line(end_byte + text.len()),
-						column: highest - end_row_byte_idx,
+						column: end_byte - end_row_byte_idx + text.len(),
 					},
 				};
 				tree.edit(&edit)
 			}
 			_ => (), // no parse language
 		}
+
+		// println!("({},{}), ({},{}) -> ({},{})",
+		// 		 start_row,
+		// 		 start_byte - start_row_byte_idx,
+		// 		 end_row,
+		// 		 end_byte - end_row_byte_idx,
+		// 		 self.content.byte_to_line(end_byte + text.len()),
+		// 		 end_byte - end_row_byte_idx + text.len());
+
 		// edit buffer content
 		self.content.remove(lowest..highest);
-		self.content.insert(lowest, text);
+		self.content.insert(lowest, text.clone());
 		match (self.parser.as_ref(), self.tree.as_ref()) {
 			(Some(_parser), Some(_tree)) => self.tree = Some(Box::new(self.get_tree())),
 			_ => (),

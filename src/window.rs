@@ -36,7 +36,7 @@ impl<'a> Window<'a> {
 			)
 			.style(Style::default().fg(Color::White).bg(Color::Black))
 			.scroll((0, self.view_offset.column as u16))
-			.wrap(Wrap { trim: false })
+			.wrap(Wrap { trim: false })			
 	}
 
 	pub fn insert_at_cursor(&mut self, text: &'a str) {
