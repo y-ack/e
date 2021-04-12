@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, io::Stdout};
 
 use io::stdout;
-use rlua::Lua;
+use mlua::Lua;
 use std::rc::Rc;
 use tree_sitter::Language;
 use tui::layout::Rect;
