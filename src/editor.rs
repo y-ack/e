@@ -2,7 +2,7 @@ use std::{borrow::Borrow, io::Stdout};
 
 use io::stdout;
 use mlua::Lua;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use tree_sitter::Language;
 use tui::layout::Rect;
 use tui::{backend::CrosstermBackend, layout::Direction, Terminal};
@@ -25,8 +25,8 @@ extern "C" {
 	fn tree_sitter_lua() -> Language;
 }
 
-struct WindowTree<'a> {
-	pub window: Box<Window<'a>>,
+pub struct WindowTree<'a> {
+	pub window: Box<Window>,
 	pub branch: Option<Box<&'a WindowTree<'a>>>,
 	pub orientation: Direction,
 }
@@ -34,7 +34,7 @@ struct WindowTree<'a> {
 pub struct Editor<'a> {
 	pub root_window: WindowTree<'a>,
 	pub running: bool,
-	pub buffers: Vec<Rc<&'a mut Buffer>>,
+	pub buffers: Vec<Arc<Mutex<Buffer>>>,
 	terminal: Terminal<CrosstermBackend<Stdout>>,
 	lua: Lua,
 }
@@ -46,7 +46,7 @@ impl<'a> Editor<'a> {
 	}
 
 	pub fn add_buffer(&mut self, content: String, name: String, language: Option<Language>) {
-		let buffer = Rc::new(&mut Buffer::new(content, name, language));
+		let buffer = Arc::new(Mutex::new(Buffer::new(content, name, language)));
 		self.buffers.push(buffer);
 	}
 
@@ -128,16 +128,17 @@ impl<'a> Default for Editor<'a> {
 		// TODO: WE NEED TO MOVE BACKENDS SOMEWHERE ELSE
 		let language_lua = unsafe { tree_sitter_lua() };
 
-		let mut buffers: Vec<Rc<&mut Buffer>> = [Buffer::new(
+		let buffers: Vec<Arc<Mutex<Buffer>>> = vec![Arc::new(Mutex::new(Buffer::new(
 			String::from("-- This buffer is for text that is not saved, and for Lua evaluation\n-- Use this to interact with the built-in Lua interpreter.\nfunction hello()\n  print('hello, world!')\nend"),
 			String::from("*scratch*"),
 			Some(language_lua)
-		)].iter_mut().map(|x| Rc::new(x)).collect();
+		)))];
+		let buffer = buffers[0].clone();
 
 		let editor = Editor {
 			buffers: buffers,
 			root_window: WindowTree {
-				window: Box::new(Window::new(buffers[0])),
+				window: Box::new(Window::new(buffer)),
 				branch: None,
 				orientation: Direction::Vertical,
 			},

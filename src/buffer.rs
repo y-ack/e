@@ -1,10 +1,10 @@
 use std::cmp::{self, max};
 use std::{borrow::Cow, cmp::min};
 
-use rlua::Lua;
+use mlua::Lua;
 use ropey::Rope;
 use ropey::RopeSlice;
-use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree, Query, QueryCursor};
+use tree_sitter::{InputEdit, Language, Node, Parser, Point, Query, QueryCursor, Tree};
 use tui::{
 	style::{Color, Style},
 	text::{Span, Spans},
@@ -95,7 +95,10 @@ impl Buffer {
 			// we select if it is a kind of "string" because the children of
 			// the "string" are the symbols surrounding the string and doesn't
 			// include the literal between them
-			if cursor.node().kind() == "string" || cursor.node().kind() == "comment" || !cursor.goto_first_child() {
+			if cursor.node().kind() == "string"
+				|| cursor.node().kind() == "comment"
+				|| !cursor.goto_first_child()
+			{
 				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {
 					vector
@@ -136,10 +139,6 @@ impl Buffer {
 				start_byte: self.content.line_to_byte(i as usize),
 			});
 		}
-		// match self.tree.as_ref() {
-		// 	Some(t) => println!("{}", t.root_node().to_sexp()),
-		// 	None => (),
-		// }
 
 		lines
 			.into_iter()
@@ -157,7 +156,6 @@ impl Buffer {
 							x.start_byte + x.rope.len_bytes(),
 						),
 					),
-					// Some(t) => Span::raw(x.rope),
 					None => Spans::from(Span::raw(x.rope)),
 				})
 			})
