@@ -1,3 +1,5 @@
+use std::{ops::DerefMut, rc::Rc};
+
 use tree_sitter::Point;
 use tui::{
 	layout::Rect,
@@ -9,13 +11,13 @@ use crate::buffer::Buffer;
 
 /// A window/visible buffer
 pub struct Window<'a> {
-	buffer: &'a mut Buffer,
+	buffer: Rc<&'a mut Buffer>,
 	cursor: Point,
 	view_offset: Point,
 }
 
 impl<'a> Window<'a> {
-	pub fn new(buffer: &'a mut Buffer) -> Window<'a> {
+	pub fn new(buffer: Rc<&'a mut Buffer>) -> Window<'a> {
 		Window {
 			buffer: buffer,
 			cursor: Point { column: 5, row: 0 },
@@ -36,11 +38,11 @@ impl<'a> Window<'a> {
 			)
 			.style(Style::default().fg(Color::White).bg(Color::Black))
 			.scroll((0, self.view_offset.column as u16))
-			.wrap(Wrap { trim: false })			
+			.wrap(Wrap { trim: false })
 	}
 
 	pub fn insert_at_cursor(&mut self, text: &'a str) {
-		self.cursor = self.buffer.insert_at_point(
+		self.cursor = self.buffer.deref_mut().insert_at_point(
 			Point {
 				row: self.cursor.row,
 				column: self.cursor.column,
