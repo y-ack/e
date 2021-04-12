@@ -185,21 +185,21 @@ impl Buffer {
 		match (self.parser.as_ref(), &mut self.tree.as_mut()) {
 			(Some(_parser), Some(tree)) => {
 				let edit = InputEdit {
-					start_byte: start_byte,
-					old_end_byte: end_byte,
-					new_end_byte: end_byte + text.len(),
+					start_byte: lowest,
+					old_end_byte: highest,
+					new_end_byte: lowest + text.len(),
 
 					start_position: Point {
 						row: start_row,
-						column: start_byte - start_row_byte_idx,
+						column: lowest - start_row_byte_idx,
 					},
 					old_end_position: Point {
 						row: end_row,
-						column: end_byte - start_row_byte_idx,
+						column: highest - start_row_byte_idx,
 					},
 					new_end_position: Point {
 						row: self.content.byte_to_line(end_byte + text.len()),
-						column: end_byte - end_row_byte_idx + text.len(),
+						column: lowest - end_row_byte_idx + text.len(),
 					},
 				};
 				tree.edit(&edit)
