@@ -26,15 +26,34 @@ impl Window {
 		}
 	}
 
-	pub fn get_widget(&self, viewport: Rect) -> Paragraph {
+	pub fn get_widget<'a>(&self, viewport: Rect) -> Paragraph {
 		let name = self.buffer.lock().unwrap().name.clone();
-		let display = self
-			.buffer
-			.lock()
-			.unwrap()
-			.render_with_viewport(self.view_offset.row as u32, viewport.height);
 
-		Paragraph::new(Span::raw("hewwo, there!"))
+		let buffer = *self.buffer.lock().unwrap();
+
+		let display = buffer
+			.content
+			.lines_at(self.view_offset.row)
+			.take(viewport.height as usize)
+			.enumerate()
+			.map(move |(i, x)| {
+				let start_byte = buffer.content.line_to_byte(i + self.view_offset.row);
+				Spans::from(match buffer.tree.as_ref() {
+					Some(t) => Spans::from(
+						buffer.highlight(
+							t.root_node()
+								.descendant_for_byte_range(start_byte, start_byte + x.len_bytes())
+								.unwrap(),
+							start_byte,
+							start_byte + x.len_bytes(),
+						),
+					),
+					None => Spans::from(Span::raw(x)),
+				})
+			})
+			.collect::<Vec<Spans>>();
+
+		Paragraph::new(display)
 			.block(Block::default().title(name).borders(Borders::ALL))
 			.style(Style::default().fg(Color::White).bg(Color::Black))
 			.scroll((0, self.view_offset.column as u16))

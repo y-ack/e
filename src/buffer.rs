@@ -1,4 +1,5 @@
 use std::cmp::{self, max};
+use std::rc::Rc;
 use std::{borrow::Cow, cmp::min};
 
 use mlua::Lua;
@@ -86,6 +87,7 @@ impl Buffer {
 	}
 
 	pub fn highlight<'b>(&self, node: Node, start: usize, end: usize) -> Vec<Span> {
+		let content = self.content;
 		let cursor = &mut node.walk();
 		let mut vector: Vec<Span> = vec![];
 		let mut token_end = start;
@@ -101,13 +103,12 @@ impl Buffer {
 			{
 				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {
-					vector
-						.push(Span::raw(self.content.slice(
-							clamp(token_end, start, end)..clamp(start_byte, start, end),
-						)));
+					vector.push(Span::raw(
+						content.slice(clamp(token_end, start, end)..clamp(start_byte, start, end)),
+					));
 				}
 				vector.push(write_token(
-					self.content.slice(
+					content.slice(
 						clamp(start_byte, start, end)..clamp(cursor.node().end_byte(), start, end),
 					),
 					cursor.node().kind(),
@@ -120,46 +121,6 @@ impl Buffer {
 				}
 			}
 		}
-	}
-
-	// OPTIMIZE: we can probably just find the first line and then iterate through
-	// each line by searching for the next newline from there instead of asking
-	// rope to get each line individually. haven't tested how rope handles
-	// carriage returns yet,
-	pub fn render_with_viewport(&self, y: u32, h: u16) -> Vec<Spans> {
-		struct Line<'a> {
-			rope: RopeSlice<'a>,
-			start_byte: usize,
-		}
-		let mut lines: Vec<Line> = vec![];
-
-		for i in y..cmp::min(y + (h as u32), self.content.len_lines() as u32) {
-			lines.push(Line {
-				rope: self.content.line(i as usize),
-				start_byte: self.content.line_to_byte(i as usize),
-			});
-		}
-
-		lines
-			.into_iter()
-			.map(|x| {
-				Spans::from(match self.tree.as_ref() {
-					Some(t) => Spans::from(
-						self.highlight(
-							t.root_node()
-								.descendant_for_byte_range(
-									x.start_byte,
-									x.start_byte + x.rope.len_bytes(),
-								)
-								.unwrap(),
-							x.start_byte,
-							x.start_byte + x.rope.len_bytes(),
-						),
-					),
-					None => Spans::from(Span::raw(x.rope)),
-				})
-			})
-			.collect::<Vec<Spans>>()
 	}
 
 	pub fn get_tree(&mut self) -> Tree {
