@@ -8,7 +8,10 @@ use tui::layout::Rect;
 use tui::{backend::CrosstermBackend, layout::Direction, Terminal};
 use tui::{
 	layout::{Constraint, Layout},
+	style::{Color, Style},
 	terminal::Frame,
+	text::{Span, Spans},
+	widgets::{Block, Borders, Paragraph, Wrap},
 };
 
 use crate::{buffer::Buffer, window::Window};
@@ -68,7 +71,50 @@ impl<'a> Editor<'a> {
 						None => [Constraint::Percentage(100)].as_ref(),
 					})
 					.split(layout);
-				f.render_widget(x.window.get_widget(l[0]), l[0]);
+				// TODO: this is why i have to not make the editor also be the fucking renderer,
+				// it will just become a stupid dumb monolith like this and i REFUSE to have this
+				let buffer = x.window.buffer.lock().unwrap();
+				f.render_widget(
+					{
+						let name = buffer.name.clone();
+
+						let display = buffer
+							.content
+							.lines_at(x.window.view_offset.row)
+							.take(l[0].height as usize)
+							.enumerate()
+							.map(|(i, r)| {
+								let start_byte = buffer
+									.content
+									.line_to_byte(i + x.window.view_offset.row)
+									.clone();
+								Spans::from(match buffer.tree.as_ref() {
+									Some(t) => Spans::from(
+										buffer
+											.highlight(
+												t.root_node()
+													.descendant_for_byte_range(
+														start_byte,
+														start_byte + r.len_bytes(),
+													)
+													.unwrap(),
+												start_byte,
+												start_byte + r.len_bytes(),
+											)
+											.clone(),
+									),
+									None => Spans::from(Span::raw(r)),
+								})
+							})
+							.collect::<Vec<Spans>>();
+						Paragraph::new(display)
+							.block(Block::default().title(name).borders(Borders::ALL))
+							.style(Style::default().fg(Color::White).bg(Color::Black))
+							.scroll((0, x.window.view_offset.column as u16))
+							.wrap(Wrap { trim: false })
+					},
+					l[0],
+				);
 				match x.branch.clone() {
 					Some(b) => generate_layouts(b, l[1], f),
 					None => {}

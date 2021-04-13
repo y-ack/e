@@ -87,7 +87,6 @@ impl Buffer {
 	}
 
 	pub fn highlight<'b>(&self, node: Node, start: usize, end: usize) -> Vec<Span> {
-		let content = self.content;
 		let cursor = &mut node.walk();
 		let mut vector: Vec<Span> = vec![];
 		let mut token_end = start;
@@ -103,12 +102,13 @@ impl Buffer {
 			{
 				let start_byte = cmp::max(cursor.node().start_byte(), start);
 				if start_byte - token_end != 0 {
-					vector.push(Span::raw(
-						content.slice(clamp(token_end, start, end)..clamp(start_byte, start, end)),
-					));
+					vector
+						.push(Span::raw(self.content.slice(
+							clamp(token_end, start, end)..clamp(start_byte, start, end),
+						)));
 				}
 				vector.push(write_token(
-					content.slice(
+					self.content.slice(
 						clamp(start_byte, start, end)..clamp(cursor.node().end_byte(), start, end),
 					),
 					cursor.node().kind(),

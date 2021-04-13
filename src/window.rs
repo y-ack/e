@@ -12,9 +12,9 @@ use crate::buffer::Buffer;
 
 /// A window/visible buffer
 pub struct Window {
-	buffer: Arc<Mutex<Buffer>>,
-	cursor: Point,
-	view_offset: Point,
+	pub buffer: Arc<Mutex<Buffer>>,
+	pub cursor: Point,
+	pub view_offset: Point,
 }
 
 impl Window {
@@ -24,40 +24,6 @@ impl Window {
 			cursor: Point { column: 5, row: 0 },
 			view_offset: Point { column: 0, row: 0 },
 		}
-	}
-
-	pub fn get_widget<'a>(&self, viewport: Rect) -> Paragraph {
-		let name = self.buffer.lock().unwrap().name.clone();
-
-		let buffer = *self.buffer.lock().unwrap();
-
-		let display = buffer
-			.content
-			.lines_at(self.view_offset.row)
-			.take(viewport.height as usize)
-			.enumerate()
-			.map(move |(i, x)| {
-				let start_byte = buffer.content.line_to_byte(i + self.view_offset.row);
-				Spans::from(match buffer.tree.as_ref() {
-					Some(t) => Spans::from(
-						buffer.highlight(
-							t.root_node()
-								.descendant_for_byte_range(start_byte, start_byte + x.len_bytes())
-								.unwrap(),
-							start_byte,
-							start_byte + x.len_bytes(),
-						),
-					),
-					None => Spans::from(Span::raw(x)),
-				})
-			})
-			.collect::<Vec<Spans>>();
-
-		Paragraph::new(display)
-			.block(Block::default().title(name).borders(Borders::ALL))
-			.style(Style::default().fg(Color::White).bg(Color::Black))
-			.scroll((0, self.view_offset.column as u16))
-			.wrap(Wrap { trim: false })
 	}
 
 	pub fn insert_at_cursor<'b>(&mut self, text: &'b str) {
