@@ -1,8 +1,12 @@
-use std::cmp::{self, max};
+use std::{
+	borrow::Borrow,
+	cmp::{self, max},
+};
 use std::{borrow::Cow, cmp::min};
 
-use mlua::Lua;
+use mlua::{Lua, ToLua, Value};
 use ropey::Rope;
+use std::rc::Rc;
 use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
 use tui::{
 	style::{Color, Style},
@@ -17,11 +21,11 @@ struct Revision<'a> {
 	text: &'a str,
 }
 
-pub struct Buffer {
+pub struct Buffer<'a> {
 	pub content: Rope,
-	pub name: String,
-	filename: String,
-	directory: String,
+	pub name: mlua::String<'a>,
+	filename: mlua::String<'a>,
+	directory: mlua::String<'a>,
 	pub parser: Option<Box<Parser>>,
 	pub tree: Option<Box<Tree>>,
 	// TODO: we need to support custom tab width rendering
@@ -45,7 +49,10 @@ where
 	)
 }
 
-fn clamp(v: usize, x: usize, y: usize) -> usize {
+fn clamp<T>(v: T, x: T, y: T) -> T
+where
+	T: std::cmp::PartialOrd,
+{
 	if v < x {
 		x
 	} else if v > y {
@@ -55,8 +62,13 @@ fn clamp(v: usize, x: usize, y: usize) -> usize {
 	}
 }
 
-impl Buffer {
-	pub fn new<'b>(content: String, name: String, language: Option<Language>) -> Buffer {
+impl<'a> Buffer<'a> {
+	pub fn new<'b>(
+		content: String,
+		name: String,
+		language: Option<Language>,
+		lua: Rc<Lua>,
+	) -> Buffer<'a> {
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();
@@ -64,21 +76,29 @@ impl Buffer {
 				let tree = parser.parse(content.clone(), None).unwrap();
 				Buffer {
 					content: Rope::from_str(&content),
-					name: name,
+					name: if let Value::String(s) = name.to_lua(lua).unwrap() {
+						s
+					} else {
+						panic!("NOOO")
+					},
 					parser: Some(Box::new(parser)),
 					tree: Some(Box::new(tree)),
-					filename: String::from(""),
-					directory: String::from(""),
+					filename: lua.load(r#""#).eval().unwrap(),
+					directory: lua.load(r#""#).eval().unwrap(),
 					tabwidth: 4,
 				}
 			}
 			None => Buffer {
 				content: Rope::from_str(&content),
-				name: name,
+				name: if let Value::String(s) = name.to_lua(lua).unwrap() {
+					s
+				} else {
+					panic!("NOOO")
+				},
 				parser: None,
 				tree: None,
-				filename: String::from(""),
-				directory: String::from(""),
+				filename: lua.load(r#""#).eval().unwrap(),
+				directory: lua.load(r#""#).eval().unwrap(),
 				tabwidth: 4,
 			},
 		}

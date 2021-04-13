@@ -2,16 +2,14 @@ use std::{borrow::Borrow, io::Stdout};
 
 use io::stdout;
 use mlua::Lua;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tree_sitter::Language;
 use tui::layout::Rect;
 use tui::{backend::CrosstermBackend, layout::Direction, Terminal};
 use tui::{
 	layout::{Constraint, Layout},
-	style::{Color, Style},
 	terminal::Frame,
-	text::{Span, Spans},
-	widgets::{Block, Borders, Paragraph, Wrap},
 };
 
 use crate::{buffer::Buffer, window::Window};
@@ -29,7 +27,7 @@ extern "C" {
 }
 
 pub struct WindowTree<'a> {
-	pub window: Box<Window>,
+	pub window: Box<Window<'a>>,
 	pub branch: Option<Box<&'a WindowTree<'a>>>,
 	pub orientation: Direction,
 }
@@ -37,9 +35,9 @@ pub struct WindowTree<'a> {
 pub struct Editor<'a> {
 	pub root_window: WindowTree<'a>,
 	pub running: bool,
-	pub buffers: Vec<Arc<Mutex<Buffer>>>,
+	pub buffers: Vec<Arc<Mutex<Buffer<'a>>>>,
 	terminal: Terminal<CrosstermBackend<Stdout>>,
-	lua: Lua,
+	lua: Rc<Lua>,
 }
 
 impl<'a> Editor<'a> {
@@ -49,7 +47,7 @@ impl<'a> Editor<'a> {
 	}
 
 	pub fn add_buffer(&mut self, content: String, name: String, language: Option<Language>) {
-		let buffer = Arc::new(Mutex::new(Buffer::new(content, name, language)));
+		let buffer = Arc::new(Mutex::new(Buffer::new(content, name, language, self.lua)));
 		self.buffers.push(buffer);
 	}
 
@@ -71,50 +69,7 @@ impl<'a> Editor<'a> {
 						None => [Constraint::Percentage(100)].as_ref(),
 					})
 					.split(layout);
-				// TODO: this is why i have to not make the editor also be the fucking renderer,
-				// it will just become a stupid dumb monolith like this and i REFUSE to have this
-				let buffer = x.window.buffer.lock().unwrap();
-				f.render_widget(
-					{
-						let name: String = buffer.name.clone();
-
-						let display: Vec<Spans> = buffer
-							.content
-							.lines_at(x.window.view_offset.row)
-							.take(l[0].height as usize)
-							.enumerate()
-							.map(|(i, r)| {
-								let start_byte = buffer
-									.content
-									.line_to_byte(i + x.window.view_offset.row)
-									.clone();
-								Spans::from(match buffer.tree.as_ref() {
-									Some(t) => Spans::from(
-										buffer
-											.highlight(
-												t.root_node()
-													.descendant_for_byte_range(
-														start_byte,
-														start_byte + r.len_bytes(),
-													)
-													.unwrap(),
-												start_byte,
-												start_byte + r.len_bytes(),
-											)
-											.clone(),
-									),
-									None => Spans::from(Span::raw(r)),
-								})
-							})
-							.collect();
-						Paragraph::new(display)
-							.block(Block::default().title(name).borders(Borders::ALL))
-							.style(Style::default().fg(Color::White).bg(Color::Black))
-							.scroll((0, x.window.view_offset.column as u16))
-							.wrap(Wrap { trim: false })
-					},
-					l[0],
-				);
+				x.window.draw_widget(l[0], f);
 				match x.branch.clone() {
 					Some(b) => generate_layouts(b, l[1], f),
 					None => {}
@@ -173,11 +128,13 @@ impl<'a> Default for Editor<'a> {
 		let backend = CrosstermBackend::new(stdout);
 		// TODO: WE NEED TO MOVE BACKENDS SOMEWHERE ELSE
 		let language_lua = unsafe { tree_sitter_lua() };
+		let lua = Rc::new(Lua::new());
 
 		let buffers: Vec<Arc<Mutex<Buffer>>> = vec![Arc::new(Mutex::new(Buffer::new(
 			String::from("-- This buffer is for text that is not saved, and for Lua evaluation\n-- Use this to interact with the built-in Lua interpreter.\nfunction hello()\n  print('hello, world!')\nend"),
 			String::from("*scratch*"),
-			Some(language_lua)
+			Some(language_lua),
+			lua
 		)))];
 		let buffer = buffers[0].clone();
 
@@ -188,7 +145,7 @@ impl<'a> Default for Editor<'a> {
 				branch: None,
 				orientation: Direction::Vertical,
 			},
-			lua: Lua::new(),
+			lua: lua,
 			running: true,
 			terminal: Terminal::new(backend).unwrap(),
 		};
