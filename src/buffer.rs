@@ -1,14 +1,12 @@
 use std::cmp::{self, max};
-use std::rc::Rc;
 use std::{borrow::Cow, cmp::min};
 
 use mlua::Lua;
 use ropey::Rope;
-use ropey::RopeSlice;
-use tree_sitter::{InputEdit, Language, Node, Parser, Point, Query, QueryCursor, Tree};
+use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
 use tui::{
 	style::{Color, Style},
-	text::{Span, Spans},
+	text::Span,
 };
 
 /// State that the buffer can undo to

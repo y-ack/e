@@ -76,9 +76,9 @@ impl<'a> Editor<'a> {
 				let buffer = x.window.buffer.lock().unwrap();
 				f.render_widget(
 					{
-						let name = buffer.name.clone();
+						let name: String = buffer.name.clone();
 
-						let display = buffer
+						let display: Vec<Spans> = buffer
 							.content
 							.lines_at(x.window.view_offset.row)
 							.take(l[0].height as usize)
@@ -106,7 +106,7 @@ impl<'a> Editor<'a> {
 									None => Spans::from(Span::raw(r)),
 								})
 							})
-							.collect::<Vec<Spans>>();
+							.collect();
 						Paragraph::new(display)
 							.block(Block::default().title(name).borders(Borders::ALL))
 							.style(Style::default().fg(Color::White).bg(Color::Black))
