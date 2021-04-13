@@ -1,0 +1,35 @@
+** editor foundation
+ - ropes
+   - it's unknown how it compares to a gap buffer for practical purposes, but since this is in rust it /is/ free, so.
+   - uwu
+ - access directly to a good syntax tree representation for scripting
+   - tree sitter (also used for highlighting) 
+   - default cursor movement commands operate on tokens instead of words, for example
+     - provide cursor motion fns to: pattern (isearch), token boundary, specific syntax token
+   - incremental reparse (using tree sitter inputedit ranges)
+ - undo
+   - command pattern?
+   - can replace the push/pop undo command function, too, to configure edit merging (e.g. one could write a ~push_undo_merge_words()~ that merges contiguous edits until a space char, meaning an undo will be forced to undo at word level minimum, /but/ save undo stack space.  alternatively, ~pop_undo_by_word()~ could do a similar search non-destructively. other behavior could be easily specified in the same way, such as treating the undo state as a tree instead of a stack, or searching for edits in a region (regional undo))
+ - text terminal user interface
+   - maybe gui later but tui is first class citizen for interaction
+ - key bindings
+   - some way of encoding positional vs mnemonic keybinds
+   - key discoverability
+   - visual keymap interface
+   
+** editor configuration
+things that shouldn't be hardcoded
+ - text wrap
+   - custom wrapping algorithms
+   - in emacs you "either get truncation, hard wrapping, or wrapping on spaces"
+   - implications: line wrapping causes scroll position to require two numbers, real line and wrapped line (offset)
+ - window display attributes
+   - border display is rule based: always on and always off are obvious, but the function to decide which borders are on would look at neighbors to decide whether to draw a border
+   
+** lua packages
+ - basic editing support package (with the default callbacks attached to various keys
+   - cursor motion, window motion, indentation, commenting
+ - a git porcelain
+ - a completion and other ide feature-providing package (probably using lsp)
+ - package for displaying and configuring editor variables (e.g. listing variables by package, keybinds, faces)
+ - modeline probably goes here(?)
