@@ -12,7 +12,7 @@ use tui::{
 	terminal::Frame,
 };
 
-use crate::{buffer::Buffer, window::Window};
+use crate::{buffer::Buffer, pane::Pane};
 use crossterm::{
 	event::{read, Event, KeyCode},
 	execute,
@@ -27,7 +27,7 @@ extern "C" {
 }
 
 pub struct WindowTree<'a> {
-	pub window: Box<Window<'a>>,
+	pub window: Box<Pane<'a>>,
 	pub branch: Option<Box<&'a WindowTree<'a>>>,
 	pub orientation: Direction,
 }
@@ -141,7 +141,7 @@ impl<'a> Default for Editor<'a> {
 		let editor = Editor {
 			buffers: buffers,
 			root_window: WindowTree {
-				window: Box::new(Window::new(buffer)),
+				window: Box::new(Pane::new(buffer)),
 				branch: None,
 				orientation: Direction::Vertical,
 			},

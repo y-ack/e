@@ -16,15 +16,15 @@ use tui::{
 use crate::buffer::Buffer;
 
 /// A window/visible buffer
-pub struct Window<'a> {
+pub struct Pane<'a> {
 	pub buffer: Arc<Mutex<Buffer<'a>>>,
 	pub cursor: Point,
 	pub view_offset: Point,
 }
 
-impl<'a> Window<'a> {
-	pub fn new(buffer: Arc<Mutex<Buffer<'a>>>) -> Window<'a> {
-		Window {
+impl<'a> Pane<'a> {
+	pub fn new(buffer: Arc<Mutex<Buffer<'a>>>) -> Pane<'a> {
+		Pane {
 			buffer: buffer,
 			cursor: Point { column: 5, row: 0 },
 			view_offset: Point { column: 0, row: 0 },
