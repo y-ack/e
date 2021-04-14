@@ -1,7 +1,6 @@
 use std::cmp::{self, max};
-use std::{borrow::Cow, cell::Ref, cmp::min};
+use std::{borrow::Cow, cmp::min};
 
-use mlua::Lua;
 use ropey::Rope;
 use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
 use tui::{
@@ -59,7 +58,7 @@ where
 }
 
 impl Buffer {
-	pub fn new(content: String, name: String, language: Option<Language>, lua: Ref<Lua>) -> Buffer {
+	pub fn new(content: String, name: String, language: Option<Language>) -> Buffer {
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();

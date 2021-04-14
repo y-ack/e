@@ -34,7 +34,7 @@ pub struct Editor {
 	pub running: bool,
 	pub buffers: Vec<Rc<RefCell<Buffer>>>,
 	terminal: Terminal<CrosstermBackend<Stdout>>,
-	lua: RefCell<Lua>,
+	lua: Lua,
 }
 
 impl Editor {
@@ -44,12 +44,7 @@ impl Editor {
 	}
 
 	pub fn add_buffer(&mut self, content: String, name: String, language: Option<Language>) {
-		let buffer = Rc::new(RefCell::new(Buffer::new(
-			content,
-			name,
-			language,
-			self.lua.borrow(),
-		)));
+		let buffer = Rc::new(RefCell::new(Buffer::new(content, name, language)));
 		self.buffers.push(buffer);
 	}
 
@@ -132,13 +127,12 @@ impl Default for Editor {
 		let backend = CrosstermBackend::new(stdout);
 		// TODO: WE NEED TO MOVE BACKENDS SOMEWHERE ELSE
 		let language_lua = unsafe { tree_sitter_lua() };
-		let lua = RefCell::new(Lua::new());
+		let lua = Lua::new();
 
 		let buffers: Vec<Rc<RefCell<Buffer>>> = vec![Rc::new(RefCell::new(Buffer::new(
 			String::from("-- This buffer is for text that is not saved, and for Lua evaluation\n-- Use this to interact with the built-in Lua interpreter.\nfunction hello()\n  print('hello, world!')\nend"),
 			String::from("*scratch*"),
 			Some(language_lua),
-			lua.borrow()
 		)))];
 		let buffer = buffers[0].clone();
 
