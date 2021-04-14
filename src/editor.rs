@@ -1,11 +1,15 @@
-use std::{borrow::Borrow, cell::RefCell, io::Stdout};
+use std::{
+	borrow::Borrow,
+	cell::{Ref, RefCell},
+	io::Stdout,
+};
 
 use io::stdout;
 use mlua::Lua;
 use std::rc::Rc;
 use tree_sitter::Language;
 use tui::layout::Rect;
-use tui::{backend::CrosstermBackend, layout::Direction, Terminal};
+use tui::{backend::CrosstermBackend, Terminal};
 use tui::{
 	layout::{Constraint, Layout},
 	terminal::Frame,
@@ -25,21 +29,15 @@ extern "C" {
 	fn tree_sitter_lua() -> Language;
 }
 
-pub struct WindowTree<'a> {
-	pub window: Box<Pane>,
-	pub branch: Option<Box<&'a WindowTree<'a>>>,
-	pub orientation: Direction,
-}
-
-pub struct Editor<'a> {
-	pub root_window: WindowTree<'a>,
+pub struct Editor {
+	pub root_pane: Rc<RefCell<Pane>>,
 	pub running: bool,
 	pub buffers: Vec<Rc<RefCell<Buffer>>>,
 	terminal: Terminal<CrosstermBackend<Stdout>>,
 	lua: RefCell<Lua>,
 }
 
-impl<'a> Editor<'a> {
+impl Editor {
 	pub fn destroy(&self) {
 		execute!(stdout(), LeaveAlternateScreen).unwrap();
 		disable_raw_mode().unwrap();
@@ -56,30 +54,30 @@ impl<'a> Editor<'a> {
 	}
 
 	pub fn draw(&mut self) -> Result<(), io::Error> {
-		let root_window = Box::new(self.root_window.borrow());
 		self.terminal.draw(|f| {
-			fn generate_layouts<'b>(
-				x: Box<&WindowTree<'b>>,
+			fn generate_layouts(
+				x: Rc<RefCell<Pane>>,
 				layout: Rect,
 				f: &mut Frame<CrosstermBackend<Stdout>>,
 			) {
+				let pane: RefCell<Pane> = x.try_borrow();
 				let l = Layout::default()
-					.direction(x.orientation.clone())
+					.direction(pane.borrow().orientation.clone())
 					.margin(0)
-					.constraints(match x.branch {
+					.constraints(match pane.borrow().branch {
 						Some(_) => {
 							[Constraint::Percentage(50), Constraint::Percentage(50)].as_ref()
 						}
 						None => [Constraint::Percentage(100)].as_ref(),
 					})
 					.split(layout);
-				x.window.draw_widget(l[0], f);
-				match x.branch.clone() {
+				pane.borrow().draw_widget(l[0], f);
+				match pane.borrow().branch {
 					Some(b) => generate_layouts(b, l[1], f),
 					None => {}
 				}
 			}
-			generate_layouts(root_window, f.size(), f);
+			generate_layouts(self.root_pane, f.size(), f);
 		})
 	}
 
@@ -95,12 +93,12 @@ impl<'a> Editor<'a> {
 				if event == KeyCode::Char('q').into() {
 					self.running = false;
 				} else if event == KeyCode::Backspace.into() {
-					self.root_window.window.delete_backwards_at_cursor(1);
+					(*self.root_pane).borrow().delete_backwards_at_cursor(1);
 				} else if event == KeyCode::Delete.into() {
-					self.root_window.window.delete_forwards_at_cursor(1);
+					(*self.root_pane).borrow().delete_forwards_at_cursor(1);
 				} else {
-					self.root_window
-						.window
+					(*self.root_pane)
+						.borrow()
 						.insert_at_cursor(String::from(match event.code {
 							KeyCode::Char('a') => "a",
 							KeyCode::Char('b') => "b",
@@ -127,7 +125,7 @@ impl<'a> Editor<'a> {
 	}
 }
 
-impl<'a> Default for Editor<'a> {
+impl Default for Editor {
 	fn default() -> Self {
 		enable_raw_mode().unwrap();
 		let stdout = io::stdout();
@@ -146,11 +144,7 @@ impl<'a> Default for Editor<'a> {
 
 		let editor = Editor {
 			buffers: buffers,
-			root_window: WindowTree {
-				window: Box::new(Pane::new(buffer)),
-				branch: None,
-				orientation: Direction::Vertical,
-			},
+			root_pane: Rc::new(RefCell::new(Pane::new(buffer))),
 			lua: lua,
 			running: true,
 			terminal: Terminal::new(backend).unwrap(),

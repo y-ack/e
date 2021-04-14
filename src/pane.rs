@@ -3,7 +3,7 @@ use std::{cell::RefCell, io::Stdout, rc::Rc};
 use tree_sitter::Point;
 use tui::{
 	backend::CrosstermBackend,
-	layout::Rect,
+	layout::{Direction, Rect},
 	style::{Color, Style},
 	text::{Span, Spans},
 	widgets::{Block, Borders, Paragraph, Wrap},
@@ -15,6 +15,8 @@ use crate::buffer::Buffer;
 /// A window/visible buffer
 pub struct Pane {
 	pub buffer: Rc<RefCell<Buffer>>,
+	pub branch: Option<Rc<RefCell<Pane>>>,
+	pub orientation: Direction,
 	pub cursor: Point,
 	pub view_offset: Point,
 }
@@ -25,6 +27,8 @@ impl Pane {
 			buffer: buffer,
 			cursor: Point { column: 5, row: 0 },
 			view_offset: Point { column: 0, row: 0 },
+			branch: None,
+			orientation: Direction::Vertical,
 		}
 	}
 
