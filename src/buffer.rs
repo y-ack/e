@@ -1,12 +1,8 @@
-use std::{
-	borrow::Borrow,
-	cmp::{self, max},
-};
-use std::{borrow::Cow, cmp::min};
+use std::cmp::{self, max};
+use std::{borrow::Cow, cell::Ref, cmp::min};
 
-use mlua::{Lua, ToLua, Value};
+use mlua::Lua;
 use ropey::Rope;
-use std::rc::Rc;
 use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
 use tui::{
 	style::{Color, Style},
@@ -21,11 +17,11 @@ struct Revision<'a> {
 	text: &'a str,
 }
 
-pub struct Buffer<'a> {
+pub struct Buffer {
 	pub content: Rope,
-	pub name: mlua::String<'a>,
-	filename: mlua::String<'a>,
-	directory: mlua::String<'a>,
+	pub name: String,
+	filename: String,
+	directory: String,
 	pub parser: Option<Box<Parser>>,
 	pub tree: Option<Box<Tree>>,
 	// TODO: we need to support custom tab width rendering
@@ -62,13 +58,8 @@ where
 	}
 }
 
-impl<'a> Buffer<'a> {
-	pub fn new<'b>(
-		content: String,
-		name: String,
-		language: Option<Language>,
-		lua: Rc<Lua>,
-	) -> Buffer<'a> {
+impl Buffer {
+	pub fn new(content: String, name: String, language: Option<Language>, lua: Ref<Lua>) -> Buffer {
 		match language {
 			Some(v) => {
 				let mut parser = Parser::new();
@@ -76,29 +67,21 @@ impl<'a> Buffer<'a> {
 				let tree = parser.parse(content.clone(), None).unwrap();
 				Buffer {
 					content: Rope::from_str(&content),
-					name: if let Value::String(s) = name.to_lua(lua).unwrap() {
-						s
-					} else {
-						panic!("NOOO")
-					},
+					name: name,
 					parser: Some(Box::new(parser)),
 					tree: Some(Box::new(tree)),
-					filename: lua.load(r#""#).eval().unwrap(),
-					directory: lua.load(r#""#).eval().unwrap(),
+					filename: String::from(""),
+					directory: String::from(""),
 					tabwidth: 4,
 				}
 			}
 			None => Buffer {
 				content: Rope::from_str(&content),
-				name: if let Value::String(s) = name.to_lua(lua).unwrap() {
-					s
-				} else {
-					panic!("NOOO")
-				},
+				name: name,
 				parser: None,
 				tree: None,
-				filename: lua.load(r#""#).eval().unwrap(),
-				directory: lua.load(r#""#).eval().unwrap(),
+				filename: String::from(""),
+				directory: String::from(""),
 				tabwidth: 4,
 			},
 		}
@@ -206,9 +189,9 @@ impl<'a> Buffer<'a> {
 		}
 	}
 
-	pub fn insert_at_point<'b>(&mut self, point: Point, text: &'b str) -> Point {
+	pub fn insert_at_point<'b>(&mut self, point: Point, text: String) -> Point {
 		let index = self.content.line_to_byte(point.row) + point.column;
-		let mut point = self.edit_region(index, index, text);
+		let mut point = self.edit_region(index, index, text.as_str());
 		point.column += text.len();
 		point
 	}

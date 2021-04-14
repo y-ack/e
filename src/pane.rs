@@ -1,7 +1,4 @@
-use std::{
-	io::Stdout,
-	sync::{Arc, Mutex},
-};
+use std::{cell::RefCell, io::Stdout, rc::Rc};
 
 use tree_sitter::Point;
 use tui::{
@@ -16,14 +13,14 @@ use tui::{
 use crate::buffer::Buffer;
 
 /// A window/visible buffer
-pub struct Pane<'a> {
-	pub buffer: Arc<Mutex<Buffer<'a>>>,
+pub struct Pane {
+	pub buffer: Rc<RefCell<Buffer>>,
 	pub cursor: Point,
 	pub view_offset: Point,
 }
 
-impl<'a> Pane<'a> {
-	pub fn new(buffer: Arc<Mutex<Buffer<'a>>>) -> Pane<'a> {
+impl Pane {
+	pub fn new(buffer: Rc<RefCell<Buffer>>) -> Pane {
 		Pane {
 			buffer: buffer,
 			cursor: Point { column: 5, row: 0 },
@@ -32,8 +29,8 @@ impl<'a> Pane<'a> {
 	}
 
 	pub fn draw_widget(&self, area: Rect, f: &mut Frame<CrosstermBackend<Stdout>>) {
-		let buffer = self.buffer.lock().unwrap();
-		let name = buffer.name.to_str().unwrap();
+		let buffer = self.buffer.borrow();
+		let name = buffer.name.as_str();
 
 		let display: Vec<Spans> = buffer
 			.content
@@ -75,8 +72,8 @@ impl<'a> Pane<'a> {
 		);
 	}
 
-	pub fn insert_at_cursor<'b>(&mut self, text: &'b str) {
-		self.cursor = self.buffer.lock().unwrap().insert_at_point(
+	pub fn insert_at_cursor(&mut self, text: String) {
+		self.cursor = self.buffer.borrow_mut().insert_at_point(
 			Point {
 				row: self.cursor.row,
 				column: self.cursor.column,
@@ -86,7 +83,7 @@ impl<'a> Pane<'a> {
 	}
 
 	pub fn delete_backwards_at_cursor(&mut self, n: usize) {
-		self.cursor = self.buffer.lock().unwrap().delete_backwards_at_point(
+		self.cursor = self.buffer.borrow_mut().delete_backwards_at_point(
 			Point {
 				row: self.cursor.row,
 				column: self.cursor.column,
@@ -96,7 +93,7 @@ impl<'a> Pane<'a> {
 	}
 
 	pub fn delete_forwards_at_cursor(&mut self, n: usize) {
-		self.buffer.lock().unwrap().delete_forwards_at_point(
+		self.buffer.borrow_mut().delete_forwards_at_point(
 			Point {
 				row: self.cursor.row,
 				column: self.cursor.column,
