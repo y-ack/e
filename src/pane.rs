@@ -98,7 +98,7 @@ impl Pane {
 	}
 
 	/// Inserts text at the cursor
-	pub fn insert_at_cursor(&mut self, text: String) {
+	pub fn insert_at_cursor<'b>(&mut self, text: &'b str) {
 		self.cursor = self.buffer.borrow_mut().insert_at_point(
 			Point {
 				row: self.cursor.row,

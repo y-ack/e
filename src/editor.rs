@@ -74,7 +74,7 @@ impl Editor {
 				} else {
 					(*self.root_pane)
 						.borrow_mut()
-						.insert_at_cursor(String::from(match event.code {
+						.insert_at_cursor(match event.code {
 							KeyCode::Char('a') => "a",
 							KeyCode::Char('b') => "b",
 							KeyCode::Char('c') => "c",
@@ -84,7 +84,7 @@ impl Editor {
 							KeyCode::Char('(') => "(",
 							KeyCode::Char(')') => ")",
 							_ => "hello! ",
-						}));
+						});
 				}
 				// self.root_window.window.insert_at_cursor(event.code);
 				self.draw().ok();

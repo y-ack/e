@@ -53,20 +53,6 @@ where
 	)
 }
 
-/// Clamps a value between two other values
-fn clamp<T>(v: T, x: T, y: T) -> T
-where
-	T: std::cmp::PartialOrd,
-{
-	if v < x {
-		x
-	} else if v > y {
-		y
-	} else {
-		v
-	}
-}
-
 impl Buffer {
 	/// Creates a new Buffer struct
 	///
@@ -144,12 +130,12 @@ impl Buffer {
 				if start_byte - token_end != 0 {
 					vector
 						.push(Span::raw(self.content.slice(
-							clamp(token_end, start, end)..clamp(start_byte, start, end),
+							token_end.clamp(start, end)..start_byte.clamp(start, end),
 						)));
 				}
 				vector.push(write_token(
 					self.content.slice(
-						clamp(start_byte, start, end)..clamp(cursor.node().end_byte(), start, end),
+						start_byte.clamp(start, end)..cursor.node().end_byte().clamp(start, end),
 					),
 					cursor.node().kind(),
 				));
@@ -254,9 +240,9 @@ impl Buffer {
 	}
 
 	/// Inserts text in the buffer at the provided point
-	pub fn insert_at_point<'b>(&mut self, point: Point, text: String) -> Point {
+	pub fn insert_at_point<'b>(&mut self, point: Point, text: &'b str) -> Point {
 		let index = self.content.line_to_byte(point.row) + point.column;
-		let mut point = self.edit_region(index, index, text.as_str());
+		let mut point = self.edit_region(index, index, text);
 		// ensure that we get the correct text position after the insert
 		point.column += text.len();
 		point
