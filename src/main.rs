@@ -15,5 +15,4 @@ fn main() {
 	while editor.running {
 		editor.update().ok().expect("oh well 2");
 	}
-	editor.destroy();
 }

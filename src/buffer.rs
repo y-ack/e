@@ -1,6 +1,7 @@
 use std::cmp::{self, max};
 use std::{borrow::Cow, cmp::min};
 
+use mlua::{prelude::LuaError, Lua, MetaMethod, ToLua, UserData, UserDataMethods};
 use ropey::Rope;
 use tree_sitter::{InputEdit, Language, Node, Parser, Point, Tree};
 use tui::{
@@ -16,6 +17,7 @@ struct Revision<'a> {
 	text: &'a str,
 }
 
+/// An allocated area for text in the editor.
 pub struct Buffer {
 	pub content: Rope,
 	pub name: String,
@@ -28,22 +30,30 @@ pub struct Buffer {
 }
 
 // TODO: need to actually make a Theme dict lol
+/// Styles a string accordingly to the string and returns a Span
+///
+/// * text - The text that will be styled into a [`Span`]
+/// * token - The token name, expected to be returned from [`Node`].kind()
 fn write_token<'a, T>(text: T, token: &'static str) -> Span<'a>
 where
 	T: Into<Cow<'a, str>>,
 {
 	Span::styled(
 		text,
-		Style::default().fg(match token {
-			"function" => Color::Rgb(246, 199, 255),
-			"identifier" => Color::Cyan,
-			"string" => Color::Yellow,
-			"comment" => Color::Green,
-			_ => Color::White,
-		}),
+		Style::default().fg(
+			// TODO: we really need to make the theme into a dict of some sort
+			match token {
+				"function" => Color::Rgb(246, 199, 255),
+				"identifier" => Color::Cyan,
+				"string" => Color::Yellow,
+				"comment" => Color::Green,
+				_ => Color::White,
+			},
+		),
 	)
 }
 
+/// Clamps a value between two other values
 fn clamp<T>(v: T, x: T, y: T) -> T
 where
 	T: std::cmp::PartialOrd,
@@ -58,6 +68,12 @@ where
 }
 
 impl Buffer {
+	/// Creates a new Buffer struct
+	///
+	/// * content - The initial content of the buffer
+	/// * name - The name of the buffer
+	/// * language - The [`Language`] used by the parser. If none is provided,
+	///   then the buffer will render without syntax highlighting.
 	pub fn new(content: String, name: String, language: Option<Language>) -> Buffer {
 		match language {
 			Some(v) => {
@@ -86,6 +102,30 @@ impl Buffer {
 		}
 	}
 
+	// TODO: we need to update this to use character positions instead of byte
+	// positions
+	/// Applies syntax highlighting to a region in the buffer
+	///
+	/// It applies syntax highlighting to the selected field
+	///
+	/// * node - The [`Node`] data that that spans the region of start and end.
+	/// * start - The start byte of the region to be highlighted
+	/// * end - The end byte of the region to be highlighted
+	///
+	/// # Example
+	///
+	/// ```rust
+	/// // this assumes that the buffer has the following content
+	/// // "function hello() { console.log('Hello, World!') }"
+	/// // let's grab the region of "function"
+	/// let start = 0;
+	/// let end = 8;
+	/// // get the node that spans the region of start and end
+	/// let node = tree.root_node().descendent_for_byte_range(
+	///		start, end
+	/// );
+	/// buffer.highlight(node, start, end);
+	/// ```
 	pub fn highlight<'b>(&self, node: Node, start: usize, end: usize) -> Vec<Span> {
 		let cursor = &mut node.walk();
 		let mut vector: Vec<Span> = vec![];
@@ -123,8 +163,14 @@ impl Buffer {
 		}
 	}
 
+	/// Get an updated version of the parser tree
+	///
+	/// # Panics
+	/// * Trying to access the tree when there is not already a tree
+	///   in the buffer will cause a panic
 	pub fn get_tree(&mut self) -> Tree {
 		let parser = self.parser.as_mut().unwrap();
+
 		parser
 			.parse(
 				self.content.clone().to_string(),
@@ -133,6 +179,25 @@ impl Buffer {
 			.unwrap()
 	}
 
+	/// Replaces the region between the start and end byte in the buffer
+	///
+	/// # Examples
+	/// ## Inserting text
+	/// ```rust
+	/// buffer.edit_region(0, 0, "Hello!");
+	/// ```
+	/// ## Replacing text
+	/// ```rust
+	/// // assume that we have "Hello!" in the buffer
+	/// buffer.edit_region(1, 5, "i!")
+	/// // the text will now be "Hi!"
+	/// ```
+	/// ## Deleting text
+	/// ```rust
+	/// // assume that we have "Hi! Hello!" in the buffer
+	///	buffer.edit_region(0, 3, "");
+	/// // the text will now be "Hello!"
+	/// ```
 	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text: &'b str) -> Point {
 		let start_row = self.content.byte_to_line(start_byte);
 		let end_row = self.content.byte_to_line(end_byte);
@@ -188,20 +253,38 @@ impl Buffer {
 		}
 	}
 
+	/// Inserts text in the buffer at the provided point
 	pub fn insert_at_point<'b>(&mut self, point: Point, text: String) -> Point {
 		let index = self.content.line_to_byte(point.row) + point.column;
 		let mut point = self.edit_region(index, index, text.as_str());
+		// ensure that we get the correct text position after the insert
 		point.column += text.len();
 		point
 	}
 
+	/// Deletes n-length backwards in the text of the buffer at the provided
+	/// point
 	pub fn delete_backwards_at_point(&mut self, point: Point, n: usize) -> Point {
 		let index = self.content.line_to_byte(point.row) + point.column;
 		self.edit_region(index, index - n, "")
 	}
 
+	/// Deletes n-length forwards in the text of the buffer at the provided
+	/// point
 	pub fn delete_forwards_at_point(&mut self, point: Point, n: usize) {
 		let index = self.content.line_to_byte(point.row) + point.column;
 		self.edit_region(index, index + n, "");
+	}
+}
+
+impl UserData for Buffer {
+	fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+		methods.add_meta_method(
+			MetaMethod::Index,
+			|lua: &Lua, this: &Buffer, key: String| match key.as_ref() {
+				"name" => Ok(this.name.as_str().to_lua(lua).unwrap()),
+				_ => Err(LuaError::RuntimeError(String::from(":("))),
+			},
+		);
 	}
 }

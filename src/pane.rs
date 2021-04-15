@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, cell::RefCell, io::Stdout, rc::Rc};
+use std::{cell::RefCell, io::Stdout, rc::Rc};
 
 use tree_sitter::Point;
 use tui::{
@@ -10,9 +10,9 @@ use tui::{
 	Frame,
 };
 
-use crate::buffer::Buffer;
+use crate::buffer::{self, Buffer};
 
-/// A window/visible buffer
+/// A visible representation of a [`Buffer`]
 pub struct Pane {
 	pub buffer: Rc<RefCell<Buffer>>,
 	pub branch: Option<Rc<RefCell<Pane>>>,
@@ -22,7 +22,8 @@ pub struct Pane {
 }
 
 impl Pane {
-	pub fn new(buffer: Rc<RefCell<Buffer>>) -> Pane {
+	/// Creates a new window from a given buffer
+	pub fn new(buffer: Rc<RefCell<buffer::Buffer>>) -> Pane {
 		Pane {
 			buffer: buffer,
 			cursor: Point { column: 5, row: 0 },
@@ -32,6 +33,9 @@ impl Pane {
 		}
 	}
 
+	// TODO: this should be handled by something else and NOT the window
+	/// Given a [`Rect`], it will render itself and all subwindows within the
+	/// given region.
 	pub fn draw_widgets(&self, area: Rect, f: &mut Frame<CrosstermBackend<Stdout>>) {
 		let buffer = (*self.buffer).borrow();
 		let name = buffer.name.as_str();
@@ -93,6 +97,7 @@ impl Pane {
 		};
 	}
 
+	/// Inserts text at the cursor
 	pub fn insert_at_cursor(&mut self, text: String) {
 		self.cursor = self.buffer.borrow_mut().insert_at_point(
 			Point {
@@ -103,6 +108,7 @@ impl Pane {
 		);
 	}
 
+	/// Deletes backwards for n-bytes at the cursor
 	pub fn delete_backwards_at_cursor(&mut self, n: usize) {
 		self.cursor = self.buffer.borrow_mut().delete_backwards_at_point(
 			Point {
@@ -113,6 +119,7 @@ impl Pane {
 		);
 	}
 
+	/// Deletes forwards for n-bytes at the cursor
 	pub fn delete_forwards_at_cursor(&mut self, n: usize) {
 		self.buffer.borrow_mut().delete_forwards_at_point(
 			Point {
@@ -123,8 +130,17 @@ impl Pane {
 		);
 	}
 
+	/// Splits the window horizontally and copies the current buffer state into
+	/// it
 	pub fn split_window_vertical(&mut self) {
 		self.orientation = Direction::Vertical;
+		self.branch = Some(Rc::new(RefCell::new(Pane::new(self.buffer.clone()))));
+	}
+
+	/// Splits the window horizontally and copies the current buffer state into
+	/// it
+	pub fn split_window_horizontal(&mut self) {
+		self.orientation = Direction::Horizontal;
 		self.branch = Some(Rc::new(RefCell::new(Pane::new(self.buffer.clone()))));
 	}
 }
