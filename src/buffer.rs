@@ -124,7 +124,7 @@ impl Buffer {
 	/// let node = buffer.tree.unwrap().root_node().descendent_for_byte_range(
 	///		start, end
 	/// );
-	/// buffer.highlight(node, start, end);
+	/// let spans = Spans::from(buffer.highlight(node, start, end));
 	/// ```
 	pub fn highlight<'b>(&self, node: Node, start: usize, end: usize) -> Vec<Span> {
 		let cursor = &mut node.walk();
