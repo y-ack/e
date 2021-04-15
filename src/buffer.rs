@@ -121,7 +121,7 @@ impl Buffer {
 	/// let start = 0;
 	/// let end = 8;
 	/// // get the node that spans the region of start and end
-	/// let node = tree.root_node().descendent_for_byte_range(
+	/// let node = buffer.tree.unwrap().root_node().descendent_for_byte_range(
 	///		start, end
 	/// );
 	/// buffer.highlight(node, start, end);
