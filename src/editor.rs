@@ -48,6 +48,18 @@ impl Editor {
 		self.terminal.clear()
 	}
 
+	/// Enters the Alternate Screen
+	pub fn enter(&self) {
+		execute!(io::stdout(), EnterAlternateScreen).unwrap();
+		enable_raw_mode().unwrap();
+	}
+
+	/// Leaves the Alternate Screen
+	pub fn leave(&self) {
+		disable_raw_mode().unwrap();
+		execute!(stdout(), LeaveAlternateScreen).unwrap();
+	}
+
 	/// Read user input events passed to the Editor as well as update the Lua
 	/// interpreter state.
 	pub fn update(&mut self) -> crossterm::Result<()> {
@@ -90,14 +102,12 @@ impl Editor {
 
 impl Drop for Editor {
 	fn drop(&mut self) {
-		execute!(stdout(), LeaveAlternateScreen).unwrap();
-		disable_raw_mode().unwrap();
+		self.leave();
 	}
 }
 
 impl Default for Editor {
 	fn default() -> Self {
-		enable_raw_mode().unwrap();
 		let stdout = io::stdout();
 		let backend = CrosstermBackend::new(stdout);
 		// TODO: WE NEED TO MOVE BACKENDS SOMEWHERE ELSE
@@ -117,25 +127,9 @@ impl Default for Editor {
 			terminal: Terminal::new(backend).unwrap(),
 			lua: Lua::new(),
 		};
-		// a test for creating a buffer in lua and then getting the name?
-		editor.lua.globals().set("owo", Buffer::new(
-			String::from("-- This buffer is for text that is not saved, and for Lua evaluation\n-- Use this to interact with the built-in Lua interpreter.\nfunction hello()\n  print('hello, world!')\nend"),
-			String::from("*scratch*"),
-			Some(language_lua)
-		)).unwrap();
 
 		(*editor.root_pane).borrow_mut().split_window_horizontal();
-		execute!(io::stdout(), EnterAlternateScreen).unwrap();
-		editor
-			.lua
-			.load(
-				r#"
-			print(owo.name)
-		"#,
-			)
-			.exec()
-			.unwrap();
-
+		editor.enter();
 		editor
 	}
 }
