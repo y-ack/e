@@ -1,9 +1,9 @@
-use std::{cell::RefCell, io::Stdout, rc::Rc};
+use std::{borrow::Borrow, cell::RefCell, io::Stdout, rc::Rc};
 
 use tree_sitter::Point;
 use tui::{
 	backend::CrosstermBackend,
-	layout::{Direction, Rect},
+	layout::{Constraint, Direction, Layout, Rect},
 	style::{Color, Style},
 	text::{Span, Spans},
 	widgets::{Block, Borders, Paragraph, Wrap},
@@ -32,9 +32,18 @@ impl Pane {
 		}
 	}
 
-	pub fn draw_widget(&self, area: Rect, f: &mut Frame<CrosstermBackend<Stdout>>) {
-		let buffer = self.buffer.borrow();
+	pub fn draw_widgets(&self, area: Rect, f: &mut Frame<CrosstermBackend<Stdout>>) {
+		let buffer = (*self.buffer).borrow();
 		let name = buffer.name.as_str();
+
+		let l = Layout::default()
+			.direction(self.orientation.clone())
+			.margin(0)
+			.constraints(match self.branch {
+				Some(_) => [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
+				None => [Constraint::Percentage(100)].as_ref(),
+			})
+			.split(area);
 
 		let display: Vec<Spans> = buffer
 			.content
@@ -72,8 +81,16 @@ impl Pane {
 				.style(Style::default().fg(Color::White).bg(Color::Black))
 				.scroll((0, self.view_offset.column as u16))
 				.wrap(Wrap { trim: false }),
-			area,
+			l[0],
 		);
+
+		match self.branch {
+			Some(_) => {
+				let branch = self.branch.as_deref().unwrap();
+				(*branch).borrow().draw_widgets(l[1], f)
+			}
+			None => {}
+		};
 	}
 
 	pub fn insert_at_cursor(&mut self, text: String) {
@@ -104,5 +121,10 @@ impl Pane {
 			},
 			n,
 		);
+	}
+
+	pub fn split_window_vertical(&mut self) {
+		self.orientation = Direction::Vertical;
+		self.branch = Some(Rc::new(RefCell::new(Pane::new(self.buffer.clone()))));
 	}
 }

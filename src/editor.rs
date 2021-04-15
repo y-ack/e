@@ -49,31 +49,8 @@ impl Editor {
 	}
 
 	pub fn draw(&mut self) -> Result<(), io::Error> {
-		self.terminal.draw(|f| {
-			fn generate_layouts(
-				x: Rc<RefCell<Pane>>,
-				layout: Rect,
-				f: &mut Frame<CrosstermBackend<Stdout>>,
-			) {
-				let pane: RefCell<Pane> = x.try_borrow();
-				let l = Layout::default()
-					.direction(pane.borrow().orientation.clone())
-					.margin(0)
-					.constraints(match pane.borrow().branch {
-						Some(_) => {
-							[Constraint::Percentage(50), Constraint::Percentage(50)].as_ref()
-						}
-						None => [Constraint::Percentage(100)].as_ref(),
-					})
-					.split(layout);
-				pane.borrow().draw_widget(l[0], f);
-				match pane.borrow().branch {
-					Some(b) => generate_layouts(b, l[1], f),
-					None => {}
-				}
-			}
-			generate_layouts(self.root_pane, f.size(), f);
-		})
+		let root_pane = (*self.root_pane).borrow();
+		self.terminal.draw(|f| root_pane.draw_widgets(f.size(), f))
 	}
 
 	pub fn clear(&mut self) -> Result<(), io::Error> {
@@ -88,12 +65,12 @@ impl Editor {
 				if event == KeyCode::Char('q').into() {
 					self.running = false;
 				} else if event == KeyCode::Backspace.into() {
-					(*self.root_pane).borrow().delete_backwards_at_cursor(1);
+					(*self.root_pane).borrow_mut().delete_backwards_at_cursor(1);
 				} else if event == KeyCode::Delete.into() {
-					(*self.root_pane).borrow().delete_forwards_at_cursor(1);
+					(*self.root_pane).borrow_mut().delete_forwards_at_cursor(1);
 				} else {
 					(*self.root_pane)
-						.borrow()
+						.borrow_mut()
 						.insert_at_cursor(String::from(match event.code {
 							KeyCode::Char('a') => "a",
 							KeyCode::Char('b') => "b",
@@ -143,6 +120,7 @@ impl Default for Editor {
 			running: true,
 			terminal: Terminal::new(backend).unwrap(),
 		};
+		(*editor.root_pane).borrow_mut().split_window_vertical();
 		execute!(io::stdout(), EnterAlternateScreen).unwrap();
 
 		editor
