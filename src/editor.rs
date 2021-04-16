@@ -1,6 +1,7 @@
-use std::{cell::RefCell, io::Stdout};
+use std::{cell::RefCell, collections::HashMap, io::Stdout};
 
 use io::stdout;
+use libloading as lib;
 use mlua::Lua;
 use std::rc::Rc;
 use tree_sitter::Language;
@@ -10,7 +11,9 @@ use crate::{buffer::Buffer, pane::Pane};
 use crossterm::{
 	event::{read, Event, KeyCode},
 	execute,
-	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+	terminal::{
+		disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
+	},
 };
 
 use std::io::{self};
@@ -24,17 +27,29 @@ extern "C" {
 /// between components and Lua.
 pub struct Editor {
 	pub root_pane: Rc<RefCell<Pane>>,
+	pub current_pane: Rc<RefCell<Pane>>,
 	pub running: bool,
 	pub buffers: Vec<Rc<RefCell<Buffer>>>,
+	tree_sitter_backends: HashMap<String, Language>,
 	terminal: Terminal<CrosstermBackend<Stdout>>,
 	lua: Lua,
 }
 
 impl Editor {
 	/// Adds a new buffer to the Editor
-	pub fn add_buffer(&mut self, content: String, name: String, language: Option<Language>) {
-		let buffer = Rc::new(RefCell::new(Buffer::new(content, name, language)));
-		self.buffers.push(buffer);
+	pub fn add_buffer<'b>(
+		&mut self,
+		content: &'b str,
+		name: &'b str,
+		language: Option<Language>,
+	) -> Rc<RefCell<Buffer>> {
+		let buffer = Rc::new(RefCell::new(Buffer::new(
+			String::from(content),
+			String::from(name),
+			language,
+		)));
+		self.buffers.push(buffer.clone());
+		buffer.clone()
 	}
 
 	/// Draws the screen
@@ -60,9 +75,43 @@ impl Editor {
 		execute!(stdout(), LeaveAlternateScreen).unwrap();
 	}
 
+	/// Loads a TreeSitter backend from a file.
+	pub fn get_tree_sitter_backend(filename: String, command_name: String) -> Language {
+		unsafe {
+			let lib = lib::Library::new(filename).unwrap();
+			let func: lib::Symbol<unsafe extern "C" fn() -> Language> =
+				lib.get(command_name.as_bytes()).unwrap();
+
+			func()
+		}
+	}
+
+	/// Loads a TreeSitter backend from a file.
+	pub fn load_tree_sitter_backend(
+		&mut self,
+		filename: String,
+		language: String,
+		command_name: String,
+	) {
+		self.tree_sitter_backends.insert(
+			language,
+			Editor::get_tree_sitter_backend(filename, command_name),
+		);
+	}
+
 	/// Read user input events passed to the Editor as well as update the Lua
 	/// interpreter state.
 	pub fn update(&mut self) -> crossterm::Result<()> {
+		// update the title of the window with the set format
+		execute!(
+			stdout(),
+			SetTitle({
+				let current_pane = (*self.current_pane).borrow();
+				let current_pane_name: String = (*current_pane.buffer).borrow().name.clone();
+				format!("e - {}", current_pane_name).as_str()
+			})
+		)
+		.unwrap();
 		Ok(match read()? {
 			Event::Key(event) => {
 				if event == KeyCode::Char('q').into() {
@@ -110,25 +159,49 @@ impl Default for Editor {
 	fn default() -> Self {
 		let stdout = io::stdout();
 		let backend = CrosstermBackend::new(stdout);
-		// TODO: WE NEED TO MOVE BACKENDS SOMEWHERE ELSE
-		let language_lua = unsafe { tree_sitter_lua() };
+
+		let mut tree_sitter_backends: HashMap<String, Language> = HashMap::new();
+		let language = Editor::get_tree_sitter_backend(
+			"./parser.so".to_string(),
+			"tree_sitter_lua".to_string(),
+		);
+		println!("{}", language.version());
+		tree_sitter_backends.insert(
+			"lua".to_string(),
+			Editor::get_tree_sitter_backend(
+				"./parser.so".to_string(),
+				"tree_sitter_lua".to_string(),
+			),
+		);
 
 		let buffers: Vec<Rc<RefCell<Buffer>>> = vec![Rc::new(RefCell::new(Buffer::new(
 			String::from("-- This buffer is for text that is not saved, and for Lua evaluation\n-- Use this to interact with the built-in Lua interpreter.\nfunction hello()\n  print('hello, world!')\nend"),
 			String::from("*scratch*"),
-			Some(language_lua),
+			Some(*tree_sitter_backends.get("lua").unwrap()),
 		)))];
 		let buffer = buffers[0].clone();
+		let root_pane = Rc::new(RefCell::new(Pane::new(buffer)));
 
-		let editor = Editor {
-			root_pane: Rc::new(RefCell::new(Pane::new(buffer))),
+		let mut editor = Editor {
+			root_pane: root_pane.clone(),
+			current_pane: root_pane.clone(),
 			running: true,
-			buffers: buffers,
+			buffers,
+			tree_sitter_backends,
 			terminal: Terminal::new(backend).unwrap(),
 			lua: Lua::new(),
 		};
 
-		(*editor.root_pane).borrow_mut().split_window_horizontal();
+		{
+			let mut root_pane = (*editor.root_pane).borrow_mut();
+			root_pane.split_window_horizontal();
+		}
+		{
+			let buffer = editor.add_buffer("owo world", "*scratch-2*", None);
+			let mut root_pane_mut = (*editor.root_pane).borrow_mut();
+			root_pane_mut.branch = Some(Rc::new(RefCell::new(Pane::new(buffer))));
+		}
+
 		editor.enter();
 		editor
 	}

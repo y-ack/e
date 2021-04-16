@@ -12,6 +12,7 @@ tui = { version = "0.14", default-features = false, features = ['crossterm'] }
 tree-sitter = "0.19.3"
 ropey = "1.2.0"
 mlua = { version = "0.5.3", features = ["luajit", "vendored"] }
+libloading = "0.7.0"
 
 [build-dependencies]
 cc="*"
