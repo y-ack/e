@@ -10,7 +10,7 @@ fn main() {
 	let mut editor = Editor::default();
 
 	editor.clear().ok();
-	editor.draw().ok();
+	editor.draw();
 
 	while editor.running {
 		editor.update().ok().expect("oh well 2");

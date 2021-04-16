@@ -53,9 +53,16 @@ impl Editor {
 	}
 
 	/// Draws the screen
-	pub fn draw(&mut self) -> Result<(), io::Error> {
-		let root_pane = (*self.root_pane).borrow();
-		self.terminal.draw(|f| root_pane.draw_widgets(f.size(), f))
+	pub fn draw(&mut self) {
+		{
+			let mut root_pane = (*self.root_pane).borrow_mut();
+			self.terminal
+				.draw(|f| {
+					root_pane.draw_widgets(f.size(), f);
+				})
+				.unwrap();
+		}
+		// self.current_pane.borrow().draw_cursor().unwrap();
 	}
 
 	/// Clears the screen
@@ -67,6 +74,13 @@ impl Editor {
 	pub fn enter(&self) {
 		execute!(io::stdout(), EnterAlternateScreen).unwrap();
 		enable_raw_mode().unwrap();
+		execute!(
+			stdout(),
+			crossterm::cursor::SavePosition,
+			crossterm::cursor::EnableBlinking,
+			crossterm::cursor::Show
+		)
+		.unwrap();
 	}
 
 	/// Leaves the Alternate Screen
@@ -138,14 +152,14 @@ impl Editor {
 						});
 				}
 				// self.root_window.window.insert_at_cursor(event.code);
-				self.draw().ok();
+				self.draw();
 			}
 			Event::Mouse(event) => println!("{:?}", event),
 			Event::Resize(_, _) => {
 				self.terminal
 					.autoresize()
 					.expect("Cannot reload the terminal successfully");
-				self.draw().ok();
+				self.draw();
 			}
 		})
 	}
@@ -162,19 +176,10 @@ impl Default for Editor {
 		let stdout = io::stdout();
 		let backend = CrosstermBackend::new(stdout);
 
+		let lua_language = unsafe { tree_sitter_lua() };
+
 		let mut tree_sitter_backends: HashMap<String, Language> = HashMap::new();
-		let language = Editor::get_tree_sitter_backend(
-			"./parser.so".to_string(),
-			"tree_sitter_lua".to_string(),
-		);
-		println!("{}", language.version());
-		tree_sitter_backends.insert(
-			"lua".to_string(),
-			Editor::get_tree_sitter_backend(
-				"./parser.so".to_string(),
-				"tree_sitter_lua".to_string(),
-			),
-		);
+		tree_sitter_backends.insert("lua".to_string(), lua_language);
 
 		let buffers: Vec<Rc<RefCell<Buffer>>> = vec![Rc::new(RefCell::new(Buffer::new(
 			String::from("-- This buffer is for text that is not saved, and for Lua evaluation\n-- Use this to interact with the built-in Lua interpreter.\nfunction hello()\n  print('hello, world!')\nend"),

@@ -1,5 +1,9 @@
-use std::{cell::RefCell, io::Stdout, rc::Rc};
+use std::{cell::RefCell, io::stdout, io::Stdout, rc::Rc};
 
+use crossterm::{
+	cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition},
+	execute, ExecutableCommand,
+};
 use tree_sitter::Point;
 use tui::{
 	backend::CrosstermBackend,
@@ -19,6 +23,7 @@ pub struct Pane {
 	pub orientation: Direction,
 	pub cursor: Point,
 	pub view_offset: Point,
+	pub view_area: Rect,
 }
 
 impl Pane {
@@ -29,6 +34,12 @@ impl Pane {
 			cursor: Point { column: 5, row: 0 },
 			view_offset: Point { column: 0, row: 0 },
 			branch: None,
+			view_area: Rect {
+				x: 0,
+				y: 0,
+				width: 0,
+				height: 0,
+			},
 			orientation: Direction::Vertical,
 		}
 	}
@@ -36,7 +47,7 @@ impl Pane {
 	// TODO: this should be handled by something else and NOT the window
 	/// Given a [`Rect`], it will render itself and all subwindows within the
 	/// given region.
-	pub fn draw_widgets(&self, area: Rect, f: &mut Frame<CrosstermBackend<Stdout>>) {
+	pub fn draw_widgets(&mut self, area: Rect, f: &mut Frame<CrosstermBackend<Stdout>>) {
 		let buffer = (*self.buffer).borrow();
 		let name = buffer.name.as_str();
 
@@ -79,6 +90,8 @@ impl Pane {
 			})
 			.collect();
 
+		self.view_area = l[0];
+
 		f.render_widget(
 			Paragraph::new(display)
 				.block(Block::default().title(name).borders(Borders::ALL))
@@ -91,10 +104,21 @@ impl Pane {
 		match self.branch {
 			Some(_) => {
 				let branch = self.branch.as_deref().unwrap();
-				(*branch).borrow().draw_widgets(l[1], f)
+				(*branch).borrow_mut().draw_widgets(l[1], f)
 			}
 			None => {}
 		};
+	}
+
+	pub fn draw_cursor(&self) -> crossterm::Result<()> {
+		stdout()
+			.execute(MoveTo(
+				self.view_area.x + self.cursor.column as u16,
+				self.view_area.y + self.cursor.row as u16,
+			))?
+			.execute(RestorePosition)?;
+
+		Ok(())
 	}
 
 	/// Inserts text at the cursor
