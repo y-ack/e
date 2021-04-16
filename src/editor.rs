@@ -75,6 +75,8 @@ impl Editor {
 		execute!(stdout(), LeaveAlternateScreen).unwrap();
 	}
 
+	// TODO: Need to investigate why backend compiled from Lua tree sitter
+	// segfaults later I guess
 	/// Loads a TreeSitter backend from a file.
 	pub fn get_tree_sitter_backend(filename: String, command_name: String) -> Language {
 		unsafe {
