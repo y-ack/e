@@ -1,6 +1,7 @@
 mod buffer;
 mod editor;
 mod pane;
+mod bufferdisplay;
 
 use editor::Editor;
 

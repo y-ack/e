@@ -68,11 +68,21 @@ impl Editor {
 				if event == KeyCode::Char('q').into() {
 					self.running = false;
 				} else if event == KeyCode::Backspace.into() {
-					(*self.root_pane).borrow_mut().delete_backwards_at_cursor(1);
+					(*self.root_pane)
+						.borrow_mut()
+						.current_buffer
+						.borrow_mut()
+						.delete_backwards_at_cursor(1);
 				} else if event == KeyCode::Delete.into() {
-					(*self.root_pane).borrow_mut().delete_forwards_at_cursor(1);
+					(*self.root_pane)
+						.borrow_mut()
+						.current_buffer
+						.borrow_mut()
+						.delete_forwards_at_cursor(1);
 				} else {
 					(*self.root_pane)
+						.borrow_mut()
+						.current_buffer
 						.borrow_mut()
 						.insert_at_cursor(match event.code {
 							KeyCode::Char('a') => "a",
