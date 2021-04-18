@@ -199,12 +199,8 @@ impl Buffer {
 		let highest_byte = self.content.char_to_byte(highest_char);
 		let lowest = self.char_to_point(lowest_char);
 		let highest = self.char_to_point(highest_char);
-		let start = self.char_to_point(start_char);
-		let end = self.char_to_point(end_char);
-		let start_byte = self.content.char_to_byte(start_char);
-		let end_byte = self.content.char_to_byte(end_char);
-		let (_, _, start_row_char_idx, _) = self.content.chunk_at_line_break(start.row);
-		let (_, end_row_byte_idx, _, _) = self.content.chunk_at_line_break(end.row);
+		let (_, _, lowest_row_char_idx, _) = self.content.chunk_at_line_break(lowest.row);
+		let (_, highest_row_byte_idx, _, _) = self.content.chunk_at_line_break(highest.row);
 
 		match (self.parser.as_ref(), &mut self.tree.as_mut()) {
 			(Some(_parser), Some(tree)) => {
@@ -214,18 +210,18 @@ impl Buffer {
 					new_end_byte: lowest_byte + text.len(),
 
 					start_position: Point {
-						row: start.row,
-						column: lowest_char - start_row_char_idx,
+						row: lowest.row,
+						column: lowest_char - lowest_row_char_idx,
 					},
 					old_end_position: Point {
-						row: end.row,
-						column: highest_char - start_row_char_idx,
+						row: highest.row,
+						column: highest_char - lowest_row_char_idx,
 					},
 					new_end_position: Point {
-						row: self.content.byte_to_line(end_byte + text.len()),
+						row: self.content.byte_to_line(highest_byte + text.len()),
 						column: self
 							.content
-							.byte_to_char(lowest_byte - end_row_byte_idx + text.len()),
+							.byte_to_char(lowest_byte - highest_row_byte_idx + text.len()),
 					},
 				};
 				tree.edit(&edit)
@@ -241,7 +237,7 @@ impl Buffer {
 			_ => (),
 		}
 
-		end
+		self.char_to_point(end_char)
 	}
 
 	/// Inserts text in the buffer at the provided point
