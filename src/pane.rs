@@ -55,25 +55,12 @@ impl Pane {
 			.take(area.height as usize)
 			.enumerate()
 			.map(|(i, r)| {
-				let start_byte = buffer
-					.content
-					.line_to_byte(i + self.view_offset.row)
-					.clone();
 				Spans::from(match buffer.tree.as_ref() {
-					Some(t) => Spans::from(
-						buffer
-							.highlight(
-								t.root_node()
-									.descendant_for_byte_range(
-										start_byte,
-										start_byte + r.len_bytes(),
-									)
-									.unwrap(),
-								start_byte,
-								start_byte + r.len_bytes(),
-							)
-							.clone(),
-					),
+					Some(_) => Spans::from(buffer.highlight_line(
+						i,
+						self.view_offset.column,
+						l[0].width as usize,
+					)),
 					None => Spans::from(Span::raw(r)),
 				})
 			})

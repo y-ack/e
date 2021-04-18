@@ -11,9 +11,9 @@ use tui::{
 
 /// State that the buffer can undo to
 struct Revision<'a> {
-	start_byte: usize,
-	old_end_byte: usize,
-	new_end_byte: usize,
+	start_char: usize,
+	old_end_char: usize,
+	new_end_char: usize,
 	text: &'a str,
 }
 
@@ -88,15 +88,43 @@ impl Buffer {
 		}
 	}
 
-	// TODO: we need to update this to use character positions instead of byte
-	// positions
+	/// A wrapper to converting a character index in the buffer content to
+	/// a point
+	fn point_to_char(&self, point: Point) -> usize {
+		let index = self.content.line_to_char(point.row);
+		index + point.column
+	}
+
+	/// Applies syntax highlighting to a line in the buffer
+	///
+	/// * line - The line of the content to highlight
+	/// * offset - The X offset of the view area to start rendering
+	/// * width - The width of the view area that will be rendered
+	pub fn highlight_line<'b>(&self, line: usize, offset: usize, width: usize) -> Vec<Span> {
+		let tree = self.tree.as_ref().unwrap();
+		let node = tree
+			.root_node()
+			.descendant_for_point_range(
+				Point {
+					column: 0,
+					row: line,
+				},
+				Point {
+					column: self.content.line(line).len_chars(),
+					row: line,
+				},
+			)
+			.unwrap();
+		let start = self.content.line_to_char(line) + offset;
+		let end = min(width + start, self.content.line_to_char(line + 1));
+		self.highlight(node, start, end)
+	}
+
 	/// Applies syntax highlighting to a region in the buffer
 	///
-	/// It applies syntax highlighting to the selected field
-	///
 	/// * node - The [`Node`] data that that spans the region of start and end.
-	/// * start - The start byte of the region to be highlighted
-	/// * end - The end byte of the region to be highlighted
+	/// * start - The start character point of the region
+	/// * end - The end character point of the region
 	///
 	/// # Example
 	///
@@ -116,8 +144,6 @@ impl Buffer {
 		let cursor = &mut node.walk();
 		let mut vector: Vec<Span> = vec![];
 		let mut token_end = start;
-		//let comment = Query::new(node.language(), "(comment)").unwrap();
-		//let qc = QueryCursor::new();
 		loop {
 			// we select if it is a kind of "string" because the children of
 			// the "string" are the symbols surrounding the string and doesn't
@@ -126,20 +152,24 @@ impl Buffer {
 				|| cursor.node().kind() == "comment"
 				|| !cursor.goto_first_child()
 			{
-				let start_byte = cmp::max(cursor.node().start_byte(), start);
-				if start_byte - token_end != 0 {
+				let start_char =
+					cmp::max(self.point_to_char(cursor.node().start_position()), start);
+				if start_char - token_end != 0 {
 					vector
 						.push(Span::raw(self.content.slice(
-							token_end.clamp(start, end)..start_byte.clamp(start, end),
+							token_end.clamp(start, end)..start_char.clamp(start, end),
 						)));
 				}
 				vector.push(write_token(
 					self.content.slice(
-						start_byte.clamp(start, end)..cursor.node().end_byte().clamp(start, end),
+						start_char.clamp(start, end)
+							..self
+								.point_to_char(cursor.node().end_position())
+								.clamp(start, end),
 					),
 					cursor.node().kind(),
 				));
-				token_end = cursor.node().end_byte();
+				token_end = self.point_to_char(cursor.node().end_position());
 				while !cursor.goto_next_sibling() {
 					if !cursor.goto_parent() {
 						return vector;
@@ -165,6 +195,8 @@ impl Buffer {
 			.unwrap()
 	}
 
+	/// A wrapper to converting a character index in the buffer content to
+	/// a point
 	fn char_to_point(&self, char: usize) -> Point {
 		let row = self.content.char_to_line(char);
 		let column = char - self.content.line_to_char(row);
