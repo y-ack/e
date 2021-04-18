@@ -10,24 +10,23 @@ use tui::{
 	Frame,
 };
 
-use crate::buffer::{self, Buffer};
+use crate::{buffer::Buffer, bufferdisplay::BufferDisplay};
 
 /// A visible representation of a [`Buffer`]
 pub struct Pane {
-	pub buffer: Rc<RefCell<Buffer>>,
+	pub buffer_displays: Vec<Rc<RefCell<BufferDisplay>>>,
+	pub current_buffer: Rc<RefCell<BufferDisplay>>,
 	pub branch: Option<Rc<RefCell<Pane>>>,
 	pub orientation: Direction,
-	pub cursor: Point,
-	pub view_offset: Point,
 }
 
 impl Pane {
 	/// Creates a new window from a given buffer
-	pub fn new(buffer: Rc<RefCell<buffer::Buffer>>) -> Pane {
+	pub fn new(buffer: Rc<RefCell<Buffer>>) -> Pane {
+		let buffer_display = Rc::new(RefCell::new(BufferDisplay::new(buffer)));
 		Pane {
-			buffer: buffer,
-			cursor: Point { column: 5, row: 0 },
-			view_offset: Point { column: 0, row: 0 },
+			current_buffer: buffer_display.clone(),
+			buffer_displays: vec![buffer_display],
 			branch: None,
 			orientation: Direction::Vertical,
 		}
@@ -37,7 +36,8 @@ impl Pane {
 	/// Given a [`Rect`], it will render itself and all subwindows within the
 	/// given region.
 	pub fn draw_widgets(&self, area: Rect, f: &mut Frame<CrosstermBackend<Stdout>>) {
-		let buffer = (*self.buffer).borrow();
+		let buffer_display = (*self.current_buffer).borrow();
+		let buffer = buffer_display.buffer.borrow();
 		let name = buffer.name.as_str();
 
 		let l = Layout::default()
@@ -51,14 +51,14 @@ impl Pane {
 
 		let display: Vec<Spans> = buffer
 			.content
-			.lines_at(self.view_offset.row)
+			.lines_at(buffer_display.view_offset.row)
 			.take(area.height as usize)
 			.enumerate()
 			.map(|(i, r)| {
 				Spans::from(match buffer.tree.as_ref() {
-					Some(_) => Spans::from(buffer.highlight_line(
+					Some(_) => Spans::from(buffer_display.highlight_line(
 						i,
-						self.view_offset.column,
+						buffer_display.view_offset.column,
 						l[0].width as usize,
 					)),
 					None => Spans::from(Span::raw(r)),
@@ -70,7 +70,7 @@ impl Pane {
 			Paragraph::new(display)
 				.block(Block::default().title(name).borders(Borders::ALL))
 				.style(Style::default().fg(Color::White).bg(Color::Black))
-				.scroll((0, self.view_offset.column as u16))
+				.scroll((0, self.current_buffer.borrow().view_offset.column as u16))
 				.wrap(Wrap { trim: false }),
 			l[0],
 		);
@@ -84,50 +84,21 @@ impl Pane {
 		};
 	}
 
-	/// Inserts text at the cursor
-	pub fn insert_at_cursor<'b>(&mut self, text: &'b str) {
-		self.cursor = self.buffer.borrow_mut().insert_at_point(
-			Point {
-				row: self.cursor.row,
-				column: self.cursor.column,
-			},
-			text,
-		);
-	}
-
-	/// Deletes backwards for n-bytes at the cursor
-	pub fn delete_backwards_at_cursor(&mut self, n: usize) {
-		self.cursor = self.buffer.borrow_mut().delete_backwards_at_point(
-			Point {
-				row: self.cursor.row,
-				column: self.cursor.column,
-			},
-			n,
-		);
-	}
-
-	/// Deletes forwards for n-bytes at the cursor
-	pub fn delete_forwards_at_cursor(&mut self, n: usize) {
-		self.buffer.borrow_mut().delete_forwards_at_point(
-			Point {
-				row: self.cursor.row,
-				column: self.cursor.column,
-			},
-			n,
-		);
-	}
-
 	/// Splits the window horizontally and copies the current buffer state into
 	/// it
 	pub fn split_window_vertical(&mut self) {
 		self.orientation = Direction::Vertical;
-		self.branch = Some(Rc::new(RefCell::new(Pane::new(self.buffer.clone()))));
+		self.branch = Some(Rc::new(RefCell::new(Pane::new(
+			self.current_buffer.borrow().buffer.clone(),
+		))));
 	}
 
 	/// Splits the window horizontally and copies the current buffer state into
 	/// it
 	pub fn split_window_horizontal(&mut self) {
 		self.orientation = Direction::Horizontal;
-		self.branch = Some(Rc::new(RefCell::new(Pane::new(self.buffer.clone()))));
+		self.branch = Some(Rc::new(RefCell::new(Pane::new(
+			self.current_buffer.borrow().buffer.clone(),
+		))));
 	}
 }
