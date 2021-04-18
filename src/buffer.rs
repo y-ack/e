@@ -165,6 +165,12 @@ impl Buffer {
 			.unwrap()
 	}
 
+	fn char_to_point(&self, char: usize) -> Point {
+		let row = self.content.char_to_line(char);
+		let column = char - self.content.line_to_char(row);
+		Point { row, column }
+	}
+
 	/// Replaces the region between the start and end byte in the buffer
 	///
 	/// # Examples
@@ -184,32 +190,42 @@ impl Buffer {
 	///	buffer.edit_region(0, 3, "");
 	/// // the text will now be "Hello!"
 	/// ```
-	pub fn edit_region<'b>(&mut self, start_byte: usize, end_byte: usize, text: &'b str) -> Point {
-		let start_row = self.content.byte_to_line(start_byte);
-		let end_row = self.content.byte_to_line(end_byte);
-		let (_, start_row_byte_idx, _, _) = self.content.chunk_at_line_break(start_row);
-		let (_, end_row_byte_idx, _, _) = self.content.chunk_at_line_break(end_row);
-		let lowest = min(start_byte, end_byte);
-		let highest = max(start_byte, end_byte);
+	// FIXME: known bug that it is possible to edit outside of the region,
+	// causing the program to crash
+	pub fn edit_region<'b>(&mut self, start_char: usize, end_char: usize, text: &'b str) -> Point {
+		let lowest_char = min(start_char, end_char);
+		let highest_char = max(start_char, end_char);
+		let lowest_byte = self.content.char_to_byte(lowest_char);
+		let highest_byte = self.content.char_to_byte(highest_char);
+		let lowest = self.char_to_point(lowest_char);
+		let highest = self.char_to_point(highest_char);
+		let start = self.char_to_point(start_char);
+		let end = self.char_to_point(end_char);
+		let start_byte = self.content.char_to_byte(start_char);
+		let end_byte = self.content.char_to_byte(end_char);
+		let (_, _, start_row_char_idx, _) = self.content.chunk_at_line_break(start.row);
+		let (_, end_row_byte_idx, _, _) = self.content.chunk_at_line_break(end.row);
 
 		match (self.parser.as_ref(), &mut self.tree.as_mut()) {
 			(Some(_parser), Some(tree)) => {
 				let edit = InputEdit {
-					start_byte: lowest,
-					old_end_byte: highest,
-					new_end_byte: lowest + text.len(),
+					start_byte: lowest_byte,
+					old_end_byte: highest_byte,
+					new_end_byte: lowest_byte + text.len(),
 
 					start_position: Point {
-						row: start_row,
-						column: lowest - start_row_byte_idx,
+						row: start.row,
+						column: lowest_char - start_row_char_idx,
 					},
 					old_end_position: Point {
-						row: end_row,
-						column: highest - start_row_byte_idx,
+						row: end.row,
+						column: highest_char - start_row_char_idx,
 					},
 					new_end_position: Point {
 						row: self.content.byte_to_line(end_byte + text.len()),
-						column: lowest - end_row_byte_idx + text.len(),
+						column: self
+							.content
+							.byte_to_char(lowest_byte - end_row_byte_idx + text.len()),
 					},
 				};
 				tree.edit(&edit)
@@ -217,33 +233,23 @@ impl Buffer {
 			_ => (), // no parse language
 		}
 
-		// println!("({},{}), ({},{}) -> ({},{})",
-		// 		 start_row,
-		// 		 start_byte - start_row_byte_idx,
-		// 		 end_row,
-		// 		 end_byte - end_row_byte_idx,
-		// 		 self.content.byte_to_line(end_byte + text.len()),
-		// 		 end_byte - end_row_byte_idx + text.len());
-
 		// edit buffer content
-		self.content.remove(lowest..highest);
-		self.content.insert(lowest, text.clone());
+		self.content.remove(lowest_char..highest_char);
+		self.content.insert(lowest_char, text.clone());
 		match (self.parser.as_ref(), self.tree.as_ref()) {
 			(Some(_parser), Some(_tree)) => self.tree = Some(Box::new(self.get_tree())),
 			_ => (),
 		}
 
-		Point {
-			row: self.content.byte_to_line(end_byte),
-			column: end_byte,
-		}
+		end
 	}
 
 	/// Inserts text in the buffer at the provided point
 	pub fn insert_at_point<'b>(&mut self, point: Point, text: &'b str) -> Point {
-		let index = self.content.line_to_byte(point.row) + point.column;
+		let index = self.content.line_to_char(point.row) + point.column;
 		let mut point = self.edit_region(index, index, text);
 		// ensure that we get the correct text position after the insert
+		// TODO: this does not work for newlines lol
 		point.column += text.len();
 		point
 	}
@@ -251,14 +257,14 @@ impl Buffer {
 	/// Deletes n-length backwards in the text of the buffer at the provided
 	/// point
 	pub fn delete_backwards_at_point(&mut self, point: Point, n: usize) -> Point {
-		let index = self.content.line_to_byte(point.row) + point.column;
+		let index = self.content.line_to_char(point.row) + point.column;
 		self.edit_region(index, index - n, "")
 	}
 
 	/// Deletes n-length forwards in the text of the buffer at the provided
 	/// point
 	pub fn delete_forwards_at_point(&mut self, point: Point, n: usize) {
-		let index = self.content.line_to_byte(point.row) + point.column;
+		let index = self.content.line_to_char(point.row) + point.column;
 		self.edit_region(index, index + n, "");
 	}
 }
