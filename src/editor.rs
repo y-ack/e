@@ -7,11 +7,7 @@ use tree_sitter::Language;
 use tui::{backend::CrosstermBackend, Terminal};
 
 use crate::{buffer::Buffer, pane::Pane};
-use crossterm::{
-	event::{read, Event, KeyCode},
-	execute,
-	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
+use crossterm::{event::{Event, KeyCode, KeyEvent, read}, execute, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}};
 
 use std::io::{self};
 
@@ -79,24 +75,17 @@ impl Editor {
 						.current_buffer
 						.borrow_mut()
 						.delete_forwards_at_cursor(1);
-				} else {
+				} else if let KeyEvent {
+					code: KeyCode::Char(c),
+					..
+				} = event {
+					let s = &c.to_string();
 					(*self.root_pane)
 						.borrow_mut()
 						.current_buffer
 						.borrow_mut()
-						.insert_at_cursor(match event.code {
-							KeyCode::Char('a') => "a",
-							KeyCode::Char('b') => "b",
-							KeyCode::Char('c') => "c",
-							KeyCode::Char('d') => "d",
-							KeyCode::Char('-') => "-",
-							KeyCode::Char(' ') => " ",
-							KeyCode::Char('(') => "(",
-							KeyCode::Char(')') => ")",
-							_ => "hello! ",
-						});
+						.insert_at_cursor(s);
 				}
-				// self.root_window.window.insert_at_cursor(event.code);
 				self.draw().ok();
 			}
 			Event::Mouse(event) => println!("{:?}", event),

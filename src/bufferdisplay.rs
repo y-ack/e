@@ -43,7 +43,7 @@ impl BufferDisplay {
 	pub fn new(buffer: Rc<RefCell<Buffer>>) -> BufferDisplay {
 		BufferDisplay {
 			buffer: buffer,
-			cursor: Point { column: 5, row: 0 },
+			cursor: Point { column: 0, row: 0 },
 			view_offset: Point { column: 0, row: 0 },
 		}
 	}
